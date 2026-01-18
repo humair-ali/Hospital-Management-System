@@ -57,6 +57,10 @@ export default function HomePage() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6 relative z-10" autoComplete="off">
+            {/* Aggressive Autofill Prevention - Hidden Dummy Fields */}
+            <input type="text" style={{ display: 'none' }} name="fake_email_prevent_autofill" autoComplete="off" />
+            <input type="password" style={{ display: 'none' }} name="fake_password_prevent_autofill" autoComplete="new-password" />
+
             <div className="space-y-6">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">Email</label>
               <div className="input-with-icon-wrapper group">
@@ -71,6 +75,7 @@ export default function HomePage() {
                   placeholder="Enter your email"
                   required
                   autoComplete="off"
+                  name="email_login_field_v2"
                 />
               </div>
             </div>
@@ -89,6 +94,7 @@ export default function HomePage() {
                   placeholder="••••••••"
                   required
                   autoComplete="new-password"
+                  name="password_login_field_v2"
                 />
               </div>
             </div>
