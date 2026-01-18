@@ -1,21 +1,21 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser } from '@/context/UserContext';
+import { useNavigation } from '@/context/NavigationContext';
 import { getPatients } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
 import { FaUserInjured, FaSearch, FaPhoneAlt, FaMapMarkerAlt, FaPlus, FaEllipsisH } from 'react-icons/fa';
 export default function PatientsPage() {
-  const router = useRouter();
   const { user, loading: authLoading } = useUser();
+  const { navigateTo } = useNavigation();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   useEffect(() => {
     if (user && ['accountant', 'patient'].includes(user.role)) {
-      router.push(`/dashboard/${user.role}`);
+      navigateTo(`dashboard/${user.role}`);
     }
-  }, [user, router]);
+  }, [user, navigateTo]);
   useEffect(() => {
     async function fetchData() {
       try {

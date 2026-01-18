@@ -39,8 +39,8 @@ const safeRequire = (path) => {
   try {
     return require(path);
   } catch (err) {
-    console.warn(`⚠️  Warning: Could not load route ${path}. Skipping...`);
-    console.warn(`   Error: ${err.message}`);
+    console.error(`❌ ERROR: Could not load route ${path}`);
+    console.error(err);
     return express.Router();
   }
 };
@@ -103,33 +103,54 @@ app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Endpoint not found' });
 });
 const { testConnection } = require('./config/db');
-const PORT = process.env.PORT || 5000;
-testConnection().then(connected => {
-  if (!connected) {
-    console.error('❌ WARNING: Database connection failed! The server will start, but API calls requiring DB will fail.');
-    console.error('👉 ACTION: Make sure your MySQL service is RUNNING.');
+const PORT = parseInt(process.env.PORT || 5000, 10);
+
+
+(async () => {
+  try {
+    const connected = await testConnection();
+    if (!connected) {
+      console.warn('⚠️  Database connection warning - will attempt to proceed');
+    } else {
+      console.log('✅ Database connected successfully');
+    }
+  } catch (err) {
+    console.warn('⚠️  Database connection error (non-critical):', err.message);
   }
-});
-const server = app.listen(PORT, () => {
-  console.log(`🚀 HMS Server running on port ${PORT}`);
-  console.log(`   Local: http://localhost:${PORT}`);
-});
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use! Please stop the other process or change the PORT in .env`);
-    process.exit(1);
-  }
-});
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION! 💥 Shutting down...');
-  console.error(err.name, err.message);
-  server.close(() => {
-    process.exit(1);
+
+  
+  const startServer = (port) => {
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 HMS Server running on port ${port}`);
+      console.log(`   Local: http://localhost:${port}`);
+      console.log(`   Network: http://0.0.0.0:${port}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`⚠️  Port ${port} is busy. Switching to ${port + 1}...`);
+        startServer(port + 1);
+      } else {
+        console.error('Server error:', err);
+      }
+    });
+    return server;
+  };
+
+  const server = startServer(PORT);
+
+  process.on('unhandledRejection', (err) => {
+    console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+    console.error(err.name, err.message);
+    server.close(() => {
+      process.exit(1);
+    });
   });
-});
-process.on('SIGTERM', () => {
-  console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
-  server.close(() => {
-    console.log('💥 Process terminated!');
+
+  process.on('SIGTERM', () => {
+    console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+    server.close(() => {
+      console.log('💥 Process terminated!');
+    });
   });
-});
+})();

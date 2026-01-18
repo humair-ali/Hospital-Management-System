@@ -1,1 +1,259 @@
-'use client';import { useState, useEffect } from 'react';import { useRouter } from 'next/navigation';import { useNavigation } from '@/context/NavigationContext';import { createBill, getPatients } from '@/lib/api';import { toast } from 'react-toastify';import {  FaUser, FaPlus, FaTrash,  FaCalculator, FaReceipt, FaFileContract,  FaArrowLeft, FaCheckCircle, FaExclamationCircle} from 'react-icons/fa';import { PageHeader } from '@/components/ui/PageHeader';import { LoadingState } from '@/components/ui/LoadingState';export default function NewBillPage() {  const { navigateTo } = useNavigation();  const [loading, setLoading] = useState(false);  const [dataLoading, setDataLoading] = useState(true);  const [patients, setPatients] = useState([]);  const [patientId, setPatientId] = useState('');  const [appointmentId, setAppointmentId] = useState('');  const [items, setItems] = useState([{ description: 'General Consultation', quantity: 1, unit_price: 50.00 }]);  useEffect(() => {    async function fetchPatients() {      try {        const res = await getPatients({ limit: 100 });        setPatients(res.data || []);      } catch (err) {        toast.error('Clinical Directory Failure');      } finally {        setDataLoading(false);      }    }    fetchPatients();  }, []);  const addItem = () => setItems([...items, { description: '', quantity: 1, unit_price: 0 }]);  const removeItem = (index) => {    if (items.length > 1) {      setItems(items.filter((_, i) => i !== index));    }  };  const updateItem = (index, field, value) => {    const newItems = [...items];    newItems[index][field] = value;    setItems(newItems);  };  const calculateTotal = () => items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);  const handleSubmit = async (e) => {    e.preventDefault();    if (!patientId) return toast.error('Patient Selection Required');    if (items.some(i => !i.description || i.unit_price <= 0)) return toast.error('Check Itemized Details');    setLoading(true);    try {      const payload = {        patient_id: parseInt(patientId),        appointment_id: appointmentId ? parseInt(appointmentId) : null,        items      };      await createBill(payload);      toast.success('Fiscal Record Initialized');      navigateTo('billing');    } catch (err) {      toast.error(err.response?.data?.error || 'Fiscal Transaction Failure');    } finally {      setLoading(false);    }  };  if (dataLoading) {    return ;  }  const actions = (    <button      onClick={() => navigateTo('billing')}      className="btn-secondary"    >       Cancel Invoice    </button>  );  return (    <div className="h-full flex flex-col gap-10 animate-in fade-in zoom-in duration-300 pb-20">      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">        {}        <div className="lg:col-span-8 space-y-10">          {}          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden group">            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full opacity-40 transition-transform group-hover:scale-110"></div>            <div className="flex items-center gap-4 mb-10 relative">              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow-lg shadow-emerald-200">              </div>              <div>                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Billing Principle</h3>                <p className="text-[11px] font-black text-gray-500 mt-2 uppercase tracking-[0.2em] leading-relaxed">Designated Patient & Encounter Data</p>              </div>            </div>            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">              <div className="space-y-4">                <label className="text-[10px] font-black text-gray-800 uppercase tracking-[0.2em] ml-1">Target Patient</label>                <div className="relative group/select">                  <select                    required                    className="w-full h-14 pl-14 pr-10 bg-gray-50 border-2 border-transparent focus:border-emerald-100 focus:bg-white rounded-2xl text-sm font-black text-gray-700 outline-none transition-all appearance-none cursor-pointer"                    value={patientId}                    onChange={(e) => setPatientId(e.target.value)}                  >                    <option value="">Choose Patient</option>                    {patients.map(p => (                      <option key={p.id} value={p.id}>{p.name} (MRN)</option>                    ))}                  </select>                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300 group-hover:text-emerald-500 transition-colors">                    ▼                  </div>                </div>              </div>              <div className="space-y-4">                <label className="text-[10px] font-black text-gray-800 uppercase tracking-[0.2em] ml-1">Encounter Link (Optional)</label>                <div className="relative group/input">                  <input                    type="text"                    className="w-full h-14 pl-14 pr-6 bg-gray-50 border-2 border-transparent focus:border-emerald-100 focus:bg-white rounded-2xl text-sm font-black text-gray-700 outline-none transition-all placeholder:text-gray-400"                    placeholder="Reference Protocol ID"                    value={appointmentId}                    onChange={(e) => setAppointmentId(e.target.value)}                  />                </div>              </div>            </div>          </div>          {}          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100">            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">              <div className="flex items-center gap-4">                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl shadow-lg shadow-indigo-200">                </div>                <div>                  <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Clinical Services</h3>                  <p className="text-[11px] font-black text-gray-500 mt-2 uppercase tracking-[0.2em] leading-relaxed">Itemized Healthcare Provisions</p>                </div>              </div>              <button                type="button"                onClick={addItem}                className="btn-primary h-12 px-8 text-[10px] font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-500/10 active:scale-95 transition-all"              >                 Add Service              </button>            </div>            <div className="space-y-8">              {items.map((item, index) => (                <div key={index} className="relative group p-10 rounded-[2.5rem] bg-gray-50 border border-transparent hover:border-indigo-100 hover:bg-white transition-all">                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">                    <div className="lg:col-span-6 space-y-4">                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Service Description</label>                      <input                        type="text"                        required                        placeholder="Clinical service name..."                        className="w-full h-14 px-8 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 outline-none transition-all shadow-sm"                        value={item.description}                        onChange={(e) => updateItem(index, 'description', e.target.value)}                      />                    </div>                    <div className="lg:col-span-2 space-y-4">                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center block">Quantity</label>                      <input                        type="number"                        required                        min="1"                        className="w-full h-14 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 text-center outline-none transition-all shadow-sm"                        value={item.quantity}                        onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}                      />                    </div>                    <div className="lg:col-span-3 space-y-4">                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right block">Unit Price</label>                      <div className="relative">                        <span className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xs">Rs.</span>                        <input                          type="number"                          required                          min="0"                          step="0.01"                          className="w-full h-14 pl-14 pr-8 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 text-right outline-none transition-all shadow-sm"                          value={item.unit_price}                          onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}                        />                      </div>                    </div>                    <div className="lg:col-span-1 flex justify-center pb-2">                      <button                        type="button"                        onClick={() => removeItem(index)}                        className="w-14 h-14 flex items-center justify-center text-rose-400 hover:text-white hover:bg-rose-600 bg-white shadow-xl hover:shadow-rose-500/10 rounded-2xl transition-all border border-gray-100 hover:border-transparent active:scale-95"                        title="Remove Service"                      >                      </button>                    </div>                  </div>                </div>              ))}            </div>          </div>        </div>        {}        <div className="lg:col-span-4 sticky top-8 space-y-10">          <div className="bg-gray-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500 rounded-full blur-[100px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>            <div className="flex items-center gap-4 mb-10 relative z-10">              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-lg shadow-inner border border-white/5">              </div>              <h3 className="text-xl font-black uppercase tracking-tight">Fiscal Recap</h3>            </div>            <div className="space-y-8 mb-10 relative z-10">              <div className="flex justify-between items-center text-[11px] font-black text-emerald-400 uppercase tracking-widest">                <span>Total Items</span>                <span className="text-white bg-white/10 px-4 py-1.5 rounded-full border border-white/10">{items.length} Units</span>              </div>              <div className="space-y-4 pt-8 border-t border-white/10">                <div className="flex justify-between items-center text-gray-300">                  <span className="text-[11px] font-black uppercase tracking-widest">Revenue Subtotal</span>                  <span className="font-black text-xl text-white">Rs. {calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>                </div>                <div className="flex justify-between items-center text-gray-300">                  <span className="text-[11px] font-black uppercase tracking-widest">Tax Provision</span>                  <span className="text-[12px] font-black text-emerald-500">Rs. 0.00</span>                </div>              </div>              <div className="pt-10 border-t-2 border-dashed border-white/10 text-center">                <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-4">Gross Payable Projection</p>                <div className="flex flex-col items-center">                  <span className="text-5xl font-black tracking-tighter text-white">Rs. {calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>                  <span className="text-[11px] font-black uppercase tracking-[0.5em] text-gray-400 mt-4 leading-none">Net Fiscal Vector</span>                </div>              </div>            </div>            <div className="bg-white/5 backdrop-blur-md p-8 rounded-[2rem] border border-white/5 relative group hover:bg-white/10 transition-all">              <div className="flex items-center gap-3 text-[11px] font-black text-emerald-400 uppercase tracking-widest mb-4">                 Expected Protocol              </div>              <p className="text-[11px] text-gray-300 leading-relaxed font-black uppercase tracking-widest">Verified clinical revenue record initialized upon committal. Secure transaction active.</p>            </div>          </div>          <button            type="submit"            disabled={loading}            className="w-full h-20 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2.5rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-950/40 border-0 flex items-center justify-center gap-6 transition-all active:scale-95 disabled:opacity-50 group relative overflow-hidden"          >            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>            {loading ? (              <div className="loading-spinner h-8 w-8 border-4 border-emerald-200 border-t-white"></div>            ) : (              <>                <span>Commit Invoice</span>              </>            )}          </button>        </div>      </form>    </div>  );}
+'use client';
+import { useState, useEffect } from 'react';
+import { useNavigation } from '@/context/NavigationContext';
+import { createBill, getPatients } from '@/lib/api';
+import { toast } from 'react-toastify';
+import {
+  FaUser, FaPlus, FaTrash,
+  FaCalculator, FaReceipt, FaFileContract,
+  FaArrowLeft, FaCheckCircle, FaExclamationCircle
+} from 'react-icons/fa';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { LoadingState } from '@/components/ui/LoadingState';
+export default function NewBillPage() {
+  const { navigateTo } = useNavigation();
+  const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [patients, setPatients] = useState([]);
+  const [patientId, setPatientId] = useState('');
+  const [appointmentId, setAppointmentId] = useState('');
+  const [items, setItems] = useState([{ description: 'General Consultation', quantity: 1, unit_price: 50.00 }]);
+  useEffect(() => {
+    async function fetchPatients() {
+      try {
+        const res = await getPatients({ limit: 100 });
+        setPatients(res.data || []);
+      } catch (err) {
+        toast.error('Clinical Directory Failure');
+      } finally {
+        setDataLoading(false);
+      }
+    }
+    fetchPatients();
+  }, []);
+  const addItem = () => setItems([...items, { description: '', quantity: 1, unit_price: 0 }]);
+  const removeItem = (index) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    }
+  };
+  const updateItem = (index, field, value) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    setItems(newItems);
+  };
+  const calculateTotal = () => items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!patientId) return toast.error('Patient Selection Required');
+    if (items.some(i => !i.description || i.unit_price <= 0)) return toast.error('Check Itemized Details');
+    setLoading(true);
+    try {
+      const payload = {
+        patient_id: parseInt(patientId),
+        appointment_id: appointmentId ? parseInt(appointmentId) : null,
+        items
+      };
+      await createBill(payload);
+      toast.success('Fiscal Record Initialized');
+      navigateTo('billing');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fiscal Transaction Failure');
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (dataLoading) {
+    return;
+  }
+  const actions = (
+    <button
+      onClick={() => navigateTo('billing')}
+      className="btn-secondary"
+    >
+      Cancel Invoice
+    </button>
+  );
+  return (
+    <div className="h-full flex flex-col gap-10 animate-in fade-in zoom-in duration-300 pb-20">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        { }
+        <div className="lg:col-span-8 space-y-10">
+          { }
+          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full opacity-40 transition-transform group-hover:scale-110"></div>
+            <div className="flex items-center gap-4 mb-10 relative">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow-lg shadow-emerald-200">
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Billing Principle</h3>
+                <p className="text-[11px] font-black text-gray-500 mt-2 uppercase tracking-[0.2em] leading-relaxed">Designated Patient & Encounter Data</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-gray-800 uppercase tracking-[0.2em] ml-1">Target Patient</label>
+                <div className="relative group/select">
+                  <select
+                    required
+                    className="w-full h-14 pl-14 pr-10 bg-gray-50 border-2 border-transparent focus:border-emerald-100 focus:bg-white rounded-2xl text-sm font-black text-gray-700 outline-none transition-all appearance-none cursor-pointer"
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                  >
+                    <option value="">Choose Patient</option>
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} (MRN)</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300 group-hover:text-emerald-500 transition-colors">
+                    ▼
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-gray-800 uppercase tracking-[0.2em] ml-1">Encounter Link (Optional)</label>
+                <div className="relative group/input">
+                  <input
+                    type="text"
+                    className="w-full h-14 pl-14 pr-6 bg-gray-50 border-2 border-transparent focus:border-emerald-100 focus:bg-white rounded-2xl text-sm font-black text-gray-700 outline-none transition-all placeholder:text-gray-400"
+                    placeholder="Reference Protocol ID"
+                    value={appointmentId}
+                    onChange={(e) => setAppointmentId(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          { }
+          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl shadow-lg shadow-indigo-200">
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Clinical Services</h3>
+                  <p className="text-[11px] font-black text-gray-500 mt-2 uppercase tracking-[0.2em] leading-relaxed">Itemized Healthcare Provisions</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={addItem}
+                className="btn-primary h-12 px-8 text-[10px] font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-500/10 active:scale-95 transition-all"
+              >
+                Add Service
+              </button>
+            </div>
+            <div className="space-y-8">
+              {items.map((item, index) => (
+                <div key={index} className="relative group p-10 rounded-[2.5rem] bg-gray-50 border border-transparent hover:border-indigo-100 hover:bg-white transition-all">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+                    <div className="lg:col-span-6 space-y-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Service Description</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Clinical service name..."
+                        className="w-full h-14 px-8 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 outline-none transition-all shadow-sm"
+                        value={item.description}
+                        onChange={(e) => updateItem(index, 'description', e.target.value)}
+                      />
+                    </div>
+                    <div className="lg:col-span-2 space-y-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center block">Quantity</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        className="w-full h-14 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 text-center outline-none transition-all shadow-sm"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                      />
+                    </div>
+                    <div className="lg:col-span-3 space-y-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right block">Unit Price</label>
+                      <div className="relative">
+                        <span className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xs">PKR</span>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="0.01"
+                          className="w-full h-14 pl-14 pr-8 bg-white border-2 border-transparent focus:border-indigo-100 rounded-2xl text-sm font-black text-gray-800 text-right outline-none transition-all shadow-sm"
+                          value={item.unit_price}
+                          onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                    <div className="lg:col-span-1 flex justify-center pb-2">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="w-14 h-14 flex items-center justify-center text-rose-400 hover:text-white hover:bg-rose-600 bg-white shadow-xl hover:shadow-rose-500/10 rounded-2xl transition-all border border-gray-100 hover:border-transparent active:scale-95"
+                        title="Remove Service"
+                      >
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        { }
+        <div className="lg:col-span-4 sticky top-8 space-y-10">
+          <div className="bg-gray-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500 rounded-full blur-[100px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
+            <div className="flex items-center gap-4 mb-10 relative z-10">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-lg shadow-inner border border-white/5">
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Fiscal Recap</h3>
+            </div>
+            <div className="space-y-8 mb-10 relative z-10">
+              <div className="flex justify-between items-center text-[11px] font-black text-emerald-400 uppercase tracking-widest">
+                <span>Total Items</span>
+                <span className="text-white bg-white/10 px-4 py-1.5 rounded-full border border-white/10">{items.length} Units</span>
+              </div>
+              <div className="space-y-4 pt-8 border-t border-white/10">
+                <div className="flex justify-between items-center text-gray-300">
+                  <span className="text-[11px] font-black uppercase tracking-widest">Revenue Subtotal</span>
+                  <span className="font-black text-xl text-white">PKR {calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center text-gray-300">
+                  <span className="text-[11px] font-black uppercase tracking-widest">Tax Provision</span>
+                  <span className="text-[12px] font-black text-emerald-500">PKR 0.00</span>
+                </div>
+              </div>
+              <div className="pt-10 border-t-2 border-dashed border-white/10 text-center">
+                <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-4">Gross Payable Projection</p>
+                <div className="flex flex-col items-center">
+                  <span className="text-5xl font-black tracking-tighter text-white">PKR {calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.5em] text-gray-400 mt-4 leading-none">Net Fiscal Vector</span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md p-8 rounded-[2rem] border border-white/5 relative group hover:bg-white/10 transition-all">
+              <div className="flex items-center gap-3 text-[11px] font-black text-emerald-400 uppercase tracking-widest mb-4">
+                Expected Protocol
+              </div>
+              <p className="text-[11px] text-gray-300 leading-relaxed font-black uppercase tracking-widest">Verified clinical revenue record initialized upon committal. Secure transaction active.</p>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-20 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2.5rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-950/40 border-0 flex items-center justify-center gap-6 transition-all active:scale-95 disabled:opacity-50 group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            {loading ? (
+              <div className="loading-spinner h-8 w-8 border-4 border-emerald-200 border-t-white"></div>
+            ) : (
+              <>
+                <span>Commit Invoice</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

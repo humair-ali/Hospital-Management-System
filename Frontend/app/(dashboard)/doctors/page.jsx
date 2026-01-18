@@ -1,21 +1,21 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser } from '@/context/UserContext';
+import { useNavigation } from '@/context/NavigationContext';
 import { getDoctors } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
 import { FaUserMd, FaSearch, FaEnvelope, FaPhone, FaPlus, FaStethoscope, FaChevronRight } from 'react-icons/fa';
 export default function DoctorsPage() {
-  const router = useRouter();
+  const { navigateTo } = useNavigation();
   const { user, loading: authLoading } = useUser();
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   useEffect(() => {
     if (user && user.role !== 'admin') {
-      router.push(`/dashboard/${user.role}`);
+      navigateTo(`dashboard/${user.role}`);
     }
-  }, [user, router]);
+  }, [user, navigateTo]);
   useEffect(() => {
     async function fetchData() {
       try {
@@ -78,46 +78,46 @@ export default function DoctorsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 font-sans">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {doctors.map((doc) => (
-            <div key={doc.id} className="card-elevated group hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden relative border-gray-100 bg-white">
+            <div key={doc.id} className="card-elevated group hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-visible relative border-gray-100 bg-white min-w-0">
               <div className="h-16 bg-gradient-to-r from-primary-50 to-primary-100/50 relative">
               </div>
-              <div className="px-6 pb-6 relative">
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-10">
+              <div className="px-6 pb-6 relative pt-16">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10">
                   <div className="w-20 h-20 rounded-2xl bg-white p-1.5 shadow-xl group-hover:scale-105 transition-transform duration-300">
                     <div className="w-full h-full rounded-xl bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center text-white text-3xl font-bold shadow-inner border border-primary-500">
                       {doc.name?.charAt(0)?.toUpperCase() || 'D'}
                     </div>
                   </div>
                 </div>
-                <div className="mt-14 text-center">
-                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-700 transition-colors truncate">{doc.name || 'Unknown'}</h3>
-                  <div className="flex items-center justify-center gap-1.5 mt-4 text-primary-600 font-bold text-[11px] uppercase tracking-wider bg-primary-50/80 py-1.5 px-4 rounded-full w-fit mx-auto border border-primary-100">
+                <div className="text-center space-y-2">
+                  <h3 className="text-sm font-bold text-gray-900 group-hover:text-primary-700 transition-colors px-2">{doc.name || 'Unknown'}</h3>
+                  <div className="flex items-center justify-center gap-1.5 text-primary-600 font-bold text-[11px] uppercase tracking-wider bg-primary-50/80 py-1.5 px-4 rounded-full w-fit mx-auto border border-primary-100">
                     <FaStethoscope size={10} />
                     <span>{doc.specialty || 'General Practice'}</span>
                   </div>
-                  <div className="mt-6 flex flex-col gap-2.5">
+                  <div className="space-y-2 mt-4">
                     {doc.email && (
-                      <div className="flex items-center gap-3 text-sm text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-gray-400 shadow-sm">
-                          <FaEnvelope size={12} />
+                      <div className="flex items-center gap-3 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-gray-400 shadow-sm flex-shrink-0">
+                          <FaEnvelope size={11} />
                         </div>
-                        <span className="truncate flex-1 text-left">{doc.email}</span>
+                        <span className="truncate flex-1 text-left text-[11px]">{doc.email}</span>
                       </div>
                     )}
                     {doc.phone && (
-                      <div className="flex items-center gap-3 text-sm text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-gray-400 shadow-sm">
-                          <FaPhone size={12} />
+                      <div className="flex items-center gap-3 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-gray-400 shadow-sm flex-shrink-0">
+                          <FaPhone size={11} />
                         </div>
-                        <span className="truncate flex-1 text-left">{doc.phone}</span>
+                        <span className="truncate flex-1 text-left text-[11px]">{doc.phone}</span>
                       </div>
                     )}
                   </div>
-                  <div className="mt-6 pt-4 border-t border-gray-100">
-                    <SPALink href={`users/${doc.id}/edit`} className="text-primary-600 font-bold text-xs hover:text-primary-800 flex items-center justify-center gap-2 group/link">
-                      View Full Profile <FaChevronRight size={10} className="group-hover/link:translate-x-1 transition-transform" />
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <SPALink href={`users/${doc.id}/edit`} className="text-primary-600 font-bold text-[10px] hover:text-primary-800 flex items-center justify-center gap-2 group/link">
+                      View Profile <FaChevronRight size={9} className="group-hover/link:translate-x-1 transition-transform" />
                     </SPALink>
                   </div>
                 </div>

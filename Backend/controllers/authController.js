@@ -1,1 +1,234 @@
-const bcrypt = require('bcrypt');const { pool } = require('../config/db');const { generateToken } = require('../middleware/auth');async function login(req, res) {  try {    const { email, password } = req.body;    if (!email || !password) {      return res.status(400).json({ success: false, error: 'Email and password required' });    }    const [users] = await pool.query(      `SELECT u.id, u.name, u.email, u.password, u.phone, u.profile_image, r.name as role,              p.id as patient_id,              d.id as doctor_id       FROM users u        JOIN roles r ON u.role_id = r.id        LEFT JOIN patients p ON u.id = p.user_id       LEFT JOIN doctors d ON u.id = d.user_id       WHERE u.email = ?`,      [email]    );    if (users.length === 0) {      return res.status(401).json({ success: false, error: 'Invalid credentials' });    }    const user = users[0];    const passwordMatch = await bcrypt.compare(password, user.password);    if (!passwordMatch) {      return res.status(401).json({ success: false, error: 'Invalid credentials' });    }    if (!user.role) {      console.error('Login error: User has no role assigned', user.id);      return res.status(500).json({ success: false, error: 'Account misconfiguration: No role assigned' });    }    let extraData = {};    if (user.role === 'patient' && user.patient_id) {      extraData.patient_id = user.patient_id;    } else if (user.role === 'doctor' && user.doctor_id) {      extraData.doctor_id = user.doctor_id;    }    const token = generateToken({ id: user.id, email: user.email, role: user.role, ...extraData });    res.json({      success: true,      message: 'Login successful',      token,      user: {        id: user.id,        name: user.name,        email: user.email,        role: user.role,        phone: user.phone,        profile_image: user.profile_image,        language: user.language || 'en',        theme: user.theme || 'light',        ...extraData      }    });  } catch (err) {    console.error('Login error:', err);    res.status(500).json({      success: false,      error: err.message || 'Server error',      details: process.env.NODE_ENV === 'development' ? err.stack : undefined    });  }}async function register(req, res) {  try {    let { name, email, password, phone, role_id, role } = req.body;    if (!role_id && role) {      const [roleRows] = await pool.query('SELECT id FROM roles WHERE name = ?', [role]);      if (roleRows.length > 0) role_id = roleRows[0].id;    }    if (!name || !email || !password || !role_id) {      return res.status(400).json({        success: false,        error: `Missing required fields (auth-register): ${!name ? 'name ' : ''}${!email ? 'email ' : ''}${!password ? 'password ' : ''}${!role_id ? 'role' : ''}`.trim()      });    }    const hashedPassword = await bcrypt.hash(password, 10);    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);    if (existing.length > 0) {      return res.status(400).json({ success: false, error: 'Email already exists' });    }    const [result] = await pool.query(      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',      [role_id, name, email, hashedPassword, phone || null]    );    res.status(201).json({      success: true,      message: 'User created successfully',      user: { id: result.insertId, name, email, role_id, phone }    });  } catch (err) {    console.error('Register error:', err);    res.status(500).json({ success: false, error: 'Server error' });  }}async function registerPatient(req, res) {  let connection;  try {    const { name, email, password, phone, dob, gender, address } = req.body;    if (!name || !email || !password) {      return res.status(400).json({ success: false, error: 'Name, email, and password required' });    }    const hashedPassword = await bcrypt.hash(password, 10);    connection = await pool.getConnection();    await connection.beginTransaction();    const [roles] = await connection.query('SELECT id FROM roles WHERE name = "patient"');    if (roles.length === 0) {      throw new Error('Patient role not found in database');    }    const roleId = roles[0].id;    const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);    if (existing.length > 0) {      await connection.rollback();      return res.status(400).json({ success: false, error: 'Email already registered' });    }    const [userResult] = await connection.query(      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',      [roleId, name, email, hashedPassword, phone || null]    );    const userId = userResult.insertId;    const mrn = 'MRN-' + Math.random().toString(36).substr(2, 9).toUpperCase();    await connection.query(      'INSERT INTO patients (user_id, medical_record_number, name, dob, gender, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)',      [userId, mrn, name, dob || null, gender || 'Other', phone || null, address || null]    );    await connection.commit();    res.status(201).json({      success: true,      message: 'Patient registered successfully',      mrn    });  } catch (err) {    if (connection) await connection.rollback();    console.error('Patient Register error:', err);    res.status(500).json({ success: false, error: 'Registration failed: ' + err.message });  } finally {    if (connection) connection.release();  }}async function registerDoctor(req, res) {  let connection;  try {    const { name, email, password, phone, specialty, qualifications, bio } = req.body;    if (!name || !email || !password || !specialty) {      return res.status(400).json({ success: false, error: 'Name, email, password, and specialty required' });    }    const hashedPassword = await bcrypt.hash(password, 10);    connection = await pool.getConnection();    await connection.beginTransaction();    const [roles] = await connection.query('SELECT id FROM roles WHERE name = "doctor"');    if (roles.length === 0) {      throw new Error('Doctor role not found in database');    }    const roleId = roles[0].id;    const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);    if (existing.length > 0) {      await connection.rollback();      return res.status(400).json({ success: false, error: 'Email already registered' });    }    const [userResult] = await connection.query(      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',      [roleId, name, email, hashedPassword, phone || null]    );    const userId = userResult.insertId;    await connection.query(      'INSERT INTO doctors (user_id, specialty, qualifications, bio) VALUES (?, ?, ?, ?)',      [userId, specialty, qualifications || null, bio || null]    );    await connection.commit();    res.status(201).json({      success: true,      message: 'Doctor account and profile created successfully'    });  } catch (err) {    if (connection) await connection.rollback();    console.error('Doctor Register error:', err);    res.status(500).json({ success: false, error: 'Registration failed: ' + err.message });  } finally {    if (connection) connection.release();  }}async function getCurrentUser(req, res) {  try {    const userId = req.user.id;    const [users] = await pool.query(      `SELECT u.id, u.name, u.email, u.phone, u.profile_image, r.name as role,              u.language, u.theme, u.notifications_enabled,              p.id as patient_id,              d.id as doctor_id       FROM users u        JOIN roles r ON u.role_id = r.id        LEFT JOIN patients p ON u.id = p.user_id       LEFT JOIN doctors d ON u.id = d.user_id       WHERE u.id = ?`,      [userId]    );    if (users.length === 0) {      return res.status(404).json({ success: false, error: 'User not found' });    }    const user = users[0];    let extraData = {};    if (user.role === 'patient' && user.patient_id) {      extraData.patient_id = user.patient_id;    } else if (user.role === 'doctor' && user.doctor_id) {      extraData.doctor_id = user.doctor_id;    }    res.json({      success: true,      user: {        id: user.id,        name: user.name,        email: user.email,        role: user.role,        phone: user.phone,        profile_image: user.profile_image,        language: user.language || 'en',        theme: user.theme || 'light',        notifications_enabled: user.notifications_enabled,        ...extraData      }    });  } catch (err) {    console.error('Get Current User Error:', err);    res.status(500).json({ success: false, error: 'Server error' });  }}module.exports = { login, register, registerPatient, registerDoctor, getCurrentUser };
+const bcrypt = require('bcryptjs');
+const { pool } = require('../config/db');
+const { generateToken } = require('../middleware/auth');
+async function login(req, res) {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password required' });
+    }
+    const [users] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.password, u.phone, u.profile_image, r.name as role,
+              p.id as patient_id,
+              d.id as doctor_id
+       FROM users u 
+       JOIN roles r ON u.role_id = r.id 
+       LEFT JOIN patients p ON u.id = p.user_id
+       LEFT JOIN doctors d ON u.id = d.user_id
+       WHERE u.email = ?`,
+      [email]
+    );
+    if (users.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+    const user = users[0];
+    console.log('DEBUG LOGIN USER OBJECT:', JSON.stringify(user, null, 2));
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+    if (!user.role) {
+      console.error('Login error: User has no role assigned', user.id);
+      return res.status(500).json({ success: false, error: 'Account misconfiguration: No role assigned' });
+    }
+    let extraData = {};
+    if (user.role === 'patient' && user.patient_id) {
+      extraData.patient_id = user.patient_id;
+    } else if (user.role === 'doctor' && user.doctor_id) {
+      extraData.doctor_id = user.doctor_id;
+    }
+    const token = generateToken({ id: user.id, email: user.email, role: user.role, ...extraData });
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        profile_image: user.profile_image,
+        language: user.language || 'en',
+        theme: user.theme || 'light',
+        ...extraData
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error',
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+}
+async function register(req, res) {
+  try {
+    let { name, email, password, phone, role_id, role } = req.body;
+    if (!role_id && role) {
+      const [roleRows] = await pool.query('SELECT id FROM roles WHERE name = ?', [role]);
+      if (roleRows.length > 0) role_id = roleRows[0].id;
+    }
+
+    
+    if (role === 'admin' || parseInt(role_id) === 1) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: Creation of additional system administrators is prohibited.' });
+    }
+    if (!name || !email || !password || !role_id) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields (auth-register): ${!name ? 'name ' : ''}${!email ? 'email ' : ''}${!password ? 'password ' : ''}${!role_id ? 'role' : ''}`.trim()
+      });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Email already exists' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',
+      [role_id, name, email, hashedPassword, phone || null]
+    );
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: { id: result.insertId, name, email, role_id, phone }
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+async function registerPatient(req, res) {
+  let connection;
+  try {
+    const { name, email, password, phone, dob, gender, address } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, error: 'Name, email, and password required' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [roles] = await connection.query('SELECT id FROM roles WHERE name = "patient"');
+    if (roles.length === 0) {
+      throw new Error('Patient role not found in database');
+    }
+    const roleId = roles[0].id;
+    const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, error: 'Email already registered' });
+    }
+    const [userResult] = await connection.query(
+      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',
+      [roleId, name, email, hashedPassword, phone || null]
+    );
+    const userId = userResult.insertId;
+    const mrn = 'MRN-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    await connection.query(
+      'INSERT INTO patients (user_id, medical_record_number, name, dob, gender, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userId, mrn, name, dob || null, gender || 'Other', phone || null, address || null]
+    );
+    await connection.commit();
+    res.status(201).json({
+      success: true,
+      message: 'Patient registered successfully',
+      mrn
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error('Patient Register error:', err);
+    res.status(500).json({ success: false, error: 'Registration failed: ' + err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+async function registerDoctor(req, res) {
+  let connection;
+  try {
+    const { name, email, password, phone, specialty, qualifications, bio } = req.body;
+    if (!name || !email || !password || !specialty) {
+      return res.status(400).json({ success: false, error: 'Name, email, password, and specialty required' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [roles] = await connection.query('SELECT id FROM roles WHERE name = "doctor"');
+    if (roles.length === 0) {
+      throw new Error('Doctor role not found in database');
+    }
+    const roleId = roles[0].id;
+    const [existing] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, error: 'Email already registered' });
+    }
+    const [userResult] = await connection.query(
+      'INSERT INTO users (role_id, name, email, password, phone) VALUES (?, ?, ?, ?, ?)',
+      [roleId, name, email, hashedPassword, phone || null]
+    );
+    const userId = userResult.insertId;
+    await connection.query(
+      'INSERT INTO doctors (user_id, specialty, qualifications, bio) VALUES (?, ?, ?, ?)',
+      [userId, specialty, qualifications || null, bio || null]
+    );
+    await connection.commit();
+    res.status(201).json({
+      success: true,
+      message: 'Doctor account and profile created successfully'
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error('Doctor Register error:', err);
+    res.status(500).json({ success: false, error: 'Registration failed: ' + err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+async function getCurrentUser(req, res) {
+  try {
+    const userId = req.user.id;
+    const [users] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.phone, u.profile_image, r.name as role,
+              u.language, u.theme, u.notifications_enabled,
+              p.id as patient_id,
+              d.id as doctor_id
+       FROM users u 
+       JOIN roles r ON u.role_id = r.id 
+       LEFT JOIN patients p ON u.id = p.user_id
+       LEFT JOIN doctors d ON u.id = d.user_id
+       WHERE u.id = ?`,
+      [userId]
+    );
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = users[0];
+    let extraData = {};
+    if (user.role === 'patient' && user.patient_id) {
+      extraData.patient_id = user.patient_id;
+    } else if (user.role === 'doctor' && user.doctor_id) {
+      extraData.doctor_id = user.doctor_id;
+    }
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        profile_image: user.profile_image,
+        language: user.language || 'en',
+        theme: user.theme || 'light',
+        notifications_enabled: user.notifications_enabled,
+        ...extraData
+      }
+    });
+  } catch (err) {
+    console.error('Get Current User Error:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+module.exports = { login, register, registerPatient, registerDoctor, getCurrentUser };

@@ -11,14 +11,15 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const { login: performLogin } = useUser();
   const router = useRouter();
+
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     try {
       const result = await performLogin(email, password);
       if (result.success && result.user) {
-        toast.success(`Welcome back, ${result.user.name}`);
         router.push('/dashboard');
+        toast.success(`Welcome back, ${result.user.name}`, { autoClose: 2000 });
       } else {
         toast.error(result.error || 'Login failed');
         setLoading(false);
@@ -28,11 +29,10 @@ export default function HomePage() {
       setLoading(false);
     }
   };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] relative overflow-hidden font-sans">
       <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-[#f1f5f9] to-transparent"></div>
-      <div className="absolute -top-48 -right-48 w-[600px] h-[600px] bg-primary-200/20 rounded-full blur-[120px]"></div>
-      <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] bg-purple-200/20 rounded-full blur-[100px]"></div>
       <div className="w-full max-w-[440px] relative z-10 px-6 py-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center p-3.5 bg-white rounded-3xl shadow-xl border border-gray-100 mb-6 transition-all hover:translate-y-[-4px] duration-500">
@@ -46,67 +46,65 @@ export default function HomePage() {
           </h1>
           <p className="text-gray-400 font-bold text-[10px] mt-4 tracking-[0.3em] uppercase opacity-70">Secured Clinical Portal • Node 01-HMS</p>
         </div>
+
         <div className="card-elevated p-8 md:p-10 border-t-[8px] border-t-primary-600 !border !border-primary-600/20 relative overflow-hidden bg-white">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary-50 rounded-full blur-[60px] -translate-y-1/2 translate-x-1/2 opacity-50"></div>
-          <div className="mb-8 text-center relative z-10">
-            <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">Authentication</h2>
-            <div className="h-1 w-10 bg-primary-600 mx-auto mt-2 rounded-full"></div>
-            <p className="text-gray-400 text-[8px] font-black uppercase tracking-[0.25em] mt-3">Identity Verification Required</p>
+
+          <div className="mb-10 text-center relative z-10">
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Authentication</h2>
+            <div className="h-1.5 w-12 bg-primary-600 mx-auto mt-3 rounded-full"></div>
+            <p className="text-gray-400 text-[9px] font-black uppercase tracking-[0.3em] mt-4">Secure Personnel Portal</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-8 relative z-10">
+
+          <form onSubmit={handleLogin} className="space-y-6 relative z-10">
             <div className="space-y-6">
-              <div className="space-y-2.5">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">
-                  Personnel Identifier
-                </label>
-                <div className="input-with-icon-wrapper group">
-                  <div className="input-icon-container">
-                    <FaEnvelope className="text-gray-400 group-focus-within:text-primary-500" />
-                  </div>
-                  <input
-                    type="email"
-                    className="input-field input-field-with-icon !bg-gray-50/50 hover:bg-white focus:bg-white !rounded-2xl"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="official.personnel@hms.com"
-                    required
-                  />
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">Email</label>
+              <div className="input-with-icon-wrapper group">
+                <div className="input-icon-container">
+                  <FaEnvelope className="text-gray-400 group-focus-within:text-primary-600" />
                 </div>
-              </div>
-              <div className="space-y-2.5">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">
-                  Access Keyphrase
-                </label>
-                <div className="input-with-icon-wrapper group">
-                  <div className="input-icon-container">
-                    <FaLock className="text-gray-400 group-focus-within:text-primary-500" />
-                  </div>
-                  <input
-                    type="password"
-                    className="input-field input-field-with-icon !bg-gray-50/50 hover:bg-white focus:bg-white !rounded-2xl"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    required
-                  />
-                </div>
+                <input
+                  type="email"
+                  className="input-field input-field-with-icon !h-14 bg-gray-50/50 focus:bg-white rounded-2xl border-gray-100"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                />
               </div>
             </div>
+
+            <div className="space-y-6">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">Password</label>
+              <div className="input-with-icon-wrapper group">
+                <div className="input-icon-container">
+                  <FaLock className="text-gray-400 group-focus-within:text-primary-600" />
+                </div>
+                <input
+                  type="password"
+                  className="input-field input-field-with-icon !h-14 bg-gray-50/50 focus:bg-white rounded-2xl border-gray-100"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+
             <button
               type="submit"
-              className="btn-primary w-full !h-16 shadow-2xl shadow-primary-600/20 group overflow-hidden relative"
+              className="btn-primary w-full !h-16 shadow-2xl shadow-primary-600/30 group overflow-hidden relative mt-4"
               disabled={loading}
             >
               <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
               {loading ? (
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-5 w-5 border-[3px] border-white/20 border-t-white"></div>
-                  <span className="text-sm uppercase tracking-[0.2em]">Verifying...</span>
+                  <span className="text-sm uppercase tracking-[0.2em] font-black">Connecting...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 relative z-10">
-                  <span className="text-sm uppercase tracking-[0.2em]">Login</span>
-                  <FaCheckCircle className="text-white/80" />
+                <div className="flex items-center gap-4 relative z-10">
+                  <span className="text-sm uppercase tracking-[0.2em] font-black">Login</span>
                 </div>
               )}
             </button>

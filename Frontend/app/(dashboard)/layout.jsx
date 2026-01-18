@@ -8,51 +8,74 @@ import {
   FaUserMd, FaUsers, FaCalendarAlt, FaFileInvoiceDollar, FaChartLine,
   FaSignOutAlt, FaTachometerAlt,
   FaUserInjured, FaClipboardList, FaNotesMedical, FaUserEdit,
-  FaBell, FaBriefcaseMedical, FaCheckCircle, FaBars, FaTimes, FaSearch
+  FaBell, FaBriefcaseMedical, FaCheckCircle, FaBars, FaTimes, FaSearch,
+  FaCamera
 } from 'react-icons/fa';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import DashboardSPAContainer from './DashboardSPAContainer';
+import { uploadFile, updateProfile } from '@/lib/api';
+import { toast } from 'react-toastify';
 function DashboardShell() {
   const router = useRouter();
-  const { user, logout } = useUser();
+  const { user, logout, updateUser } = useUser();
   const { navigateTo, currentView } = useNavigation();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [notifications] = useState([
     { id: 1, title: 'System Synchronized', message: 'Hospital clinical registry is up to date.', time: 'Just now', type: 'success' },
     { id: 2, title: 'Welcome to CareFlow', message: 'You have logged as ' + user?.role + '.', time: '5m ago', type: 'info' }
   ]);
-  const [hasUnread, setHasUnread] = useState(true);
+  const [hasUnread, setHasUnread] = useState(false); 
+
+  const handleProfileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast.error('File size must be under 5MB');
+
+    setIsUploading(true);
+    const toastId = toast.loading('Uploading profile image...');
+    try {
+      const { url } = await uploadFile(file);
+      await updateProfile({ profile_image: url });
+      updateUser({ profile_image: url });
+      toast.update(toastId, { render: 'Profile identity updated', type: 'success', isLoading: false, autoClose: 3000 });
+    } catch (err) {
+      toast.update(toastId, { render: err.message || 'Upload failed', type: 'error', isLoading: false, autoClose: 3000 });
+    } finally {
+      setIsUploading(false);
+    }
+  };
   const handleLogout = () => {
     logout();
   };
-  const role = user?.role || 'admin';
+  const role = (user?.role && user.role !== 'undefined') ? user.role : 'admin';
   const getSidebarLinks = (role) => {
     const common = [
-      { group: '', items: [{ view: `dashboard/${role}`, label: 'Dashboard', icon: FaTachometerAlt }] }
+      { group: 'Overview', items: [{ view: `dashboard/${role}`, label: 'Dashboard', icon: FaTachometerAlt }] }
     ];
     switch (role) {
       case 'admin':
         return [
           ...common,
           {
-            group: 'Management', items: [
-              { view: 'users', label: 'Doctors / Staff', icon: FaUsers },
-              { view: 'patients', label: 'Patients', icon: FaUserInjured },
-              { view: 'doctors', label: 'Doctors', icon: FaUserMd },
+            group: 'Institutional Control', items: [
+              { view: 'users', label: 'Staff Management', icon: FaUsers },
+              { view: 'patients', label: 'Patient Registry', icon: FaUserInjured },
+              { view: 'doctors', label: 'Clinical Personnel', icon: FaUserMd },
             ]
           },
           {
-            group: 'Operations', items: [
-              { view: 'appointments', label: 'Appointments', icon: FaCalendarAlt },
-              { view: 'medical-records', label: 'Medical Records', icon: FaNotesMedical },
+            group: 'Operational Logic', items: [
+              { view: 'appointments', label: 'Schedule Manager', icon: FaCalendarAlt },
+              { view: 'medical-records', label: 'Clinical Records', icon: FaNotesMedical },
             ]
           },
           {
-            group: 'Finance', items: [
-              { view: 'billing', label: 'Billing', icon: FaFileInvoiceDollar },
-              { view: 'reports', label: 'Reports', icon: FaChartLine },
+            group: 'Fiscal Governance', items: [
+              { view: 'billing', label: 'Billing & Payments', icon: FaFileInvoiceDollar },
+              { view: 'reports', label: 'Executive Analytics', icon: FaChartLine },
             ]
           },
         ];
@@ -60,20 +83,16 @@ function DashboardShell() {
         return [
           ...common,
           {
-            group: 'Patient Care', items: [
-              { view: 'patients', label: 'My Patients', icon: FaUserInjured },
-              { view: 'appointments', label: 'Appointments', icon: FaCalendarAlt },
-              { view: 'medical-records', label: 'Medical Records', icon: FaNotesMedical },
+            group: 'Clinical Console', items: [
+              { view: 'patients', label: 'Assigned Patients', icon: FaUserInjured },
+              { view: 'appointments', label: 'Clinical Schedule', icon: FaCalendarAlt },
+              { view: 'medical-records', label: 'Treatment Records', icon: FaNotesMedical },
             ]
-          }
-        ];
-      case 'patient':
-        return [
+          },
           {
-            group: 'My Portal', items: [
-              { view: 'dashboard/patient', label: 'Dashboard', icon: FaTachometerAlt },
-              { view: 'appointments', label: 'My Appointments', icon: FaCalendarAlt },
-              { view: 'medical-records', label: 'My Records', icon: FaNotesMedical },
+            group: 'Reports & Fiscal', items: [
+              { view: 'reports', label: 'Clinical Reports', icon: FaChartLine },
+              { view: 'billing/my-bills', label: 'Patient Billing (View)', icon: FaFileInvoiceDollar },
             ]
           }
         ];
@@ -81,10 +100,10 @@ function DashboardShell() {
         return [
           ...common,
           {
-            group: 'Patient Care', items: [
-              { view: 'patients', label: 'Patients', icon: FaUserInjured },
-              { view: 'appointments', label: 'Appointments', icon: FaCalendarAlt },
-              { view: 'medical-records', label: 'Medical Records', icon: FaNotesMedical },
+            group: 'Nursing Care', items: [
+              { view: 'patients', label: 'My Patients', icon: FaUserInjured },
+              { view: 'appointments', label: 'Care Schedule', icon: FaCalendarAlt },
+              { view: 'medical-records', label: 'Care Notes', icon: FaNotesMedical },
             ]
           }
         ];
@@ -93,8 +112,8 @@ function DashboardShell() {
           ...common,
           {
             group: 'Front Desk', items: [
-              { view: 'patients', label: 'Patients', icon: FaUserInjured },
-              { view: 'appointments', label: 'Appointments', icon: FaCalendarAlt },
+              { view: 'patients', label: 'Registration', icon: FaUserInjured },
+              { view: 'appointments', label: 'Scheduling', icon: FaCalendarAlt },
             ]
           }
         ];
@@ -102,9 +121,20 @@ function DashboardShell() {
         return [
           ...common,
           {
-            group: 'Finance', items: [
-              { view: 'billing', label: 'Billing', icon: FaFileInvoiceDollar },
-              { view: 'reports', label: 'Reports', icon: FaChartLine },
+            group: 'Fiscal Control', items: [
+              { view: 'billing', label: 'Invoices & Payments', icon: FaFileInvoiceDollar },
+              { view: 'reports', label: 'Financial Reports', icon: FaChartLine },
+            ]
+          }
+        ];
+      case 'patient':
+        return [
+          ...common,
+          {
+            group: 'Self Service', items: [
+              { view: 'appointments', label: 'My Appointments', icon: FaCalendarAlt },
+              { view: 'medical-records', label: 'My Reports', icon: FaNotesMedical },
+              { view: 'billing/my-bills', label: 'My Billing', icon: FaFileInvoiceDollar },
             ]
           }
         ];
@@ -174,7 +204,7 @@ function DashboardShell() {
               {user?.profile_image ? (
                 <img src={user.profile_image} className="h-full w-full object-cover rounded-full" alt="Profile" />
               ) : (
-                <span>{user?.name?.charAt(0).toUpperCase() || 'U'}</span>
+                <span>{user?.role === 'admin' ? 'A' : (user?.name?.charAt(0).toUpperCase() || 'U')}</span>
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -203,12 +233,9 @@ function DashboardShell() {
                   setIsUserMenuOpen(false);
                   setHasUnread(false);
                 }}
-                className="icon-btn w-9 h-9 rounded-full bg-white border border-gray-100 shadow-sm text-gray-600 hover:text-primary-600 hover:border-primary-200 relative active:scale-95 cursor-pointer z-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 flex items-center justify-center"
+                className="icon-btn w-9 h-9 rounded-full bg-white border border-gray-100 shadow-sm text-gray-500 hover:text-primary-600 hover:border-primary-200 relative active:scale-95 cursor-pointer z-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 flex items-center justify-center transition-all"
               >
-                <FaBell size={16} />
-                {hasUnread && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-                )}
+                <FaBell size={14} />
               </button>
               {isNotificationsOpen && (
                 <>
@@ -250,11 +277,11 @@ function DashboardShell() {
                 }}
                 className="flex items-center gap-2 group outline-none cursor-pointer"
               >
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-700 text-white flex items-center justify-center text-[13px] font-black shadow-md ring-2 ring-white group-hover:ring-primary-100 cursor-pointer overflow-hidden active:scale-95">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-700 text-white flex items-center justify-center text-[13px] font-black shadow-md ring-2 ring-white group-hover:ring-primary-100 cursor-pointer overflow-hidden active:scale-95 transition-all">
                   {user?.profile_image ? (
                     <img src={user.profile_image} className="h-full w-full object-cover" alt="Profile" />
                   ) : (
-                    <span className="leading-none">{user?.name?.charAt(0).toUpperCase() || 'U'}</span>
+                    <span className="leading-none">{user?.role === 'admin' ? 'A' : (user?.name?.charAt(0).toUpperCase() || 'U')}</span>
                   )}
                 </div>
               </button>
@@ -267,6 +294,17 @@ function DashboardShell() {
                       <p className="text-xs font-medium text-gray-500 truncate">{user?.email}</p>
                     </div>
                     <div className="p-1.5">
+                      <label className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer w-full text-left transition-colors">
+                        <FaCamera size={14} className="text-gray-400" />
+                        <span>Update Photo</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleProfileUpload}
+                          disabled={isUploading}
+                        />
+                      </label>
                       <button
                         onClick={() => {
                           navigateTo(`dashboard/${role}/profile`);
@@ -294,8 +332,10 @@ function DashboardShell() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8 scrollbar-thin relative z-0">
-          <div className="max-w-[1600px] mx-auto pb-10">
+        <main className="flex-1 overflow-y-auto p-8 scrollbar-thin relative z-0 bg-gray-50/50">
+          <div className="fixed top-0 right-0 w-[800px] h-[800px] bg-primary-100/20 rounded-full blur-[120px] -z-10 pointer-events-none translate-x-1/3 -translate-y-1/3"></div>
+          <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-violet-100/20 rounded-full blur-[100px] -z-10 pointer-events-none -translate-x-1/4 translate-y-1/4"></div>
+          <div className="max-w-[1600px] mx-auto pb-10 relative z-10">
             <DashboardSPAContainer />
           </div>
         </main>
@@ -305,7 +345,7 @@ function DashboardShell() {
 }
 export default function DashboardLayout({ children }) {
   const { user } = useUser();
-  const role = user?.role || 'admin';
+  const role = (user?.role && user.role !== 'undefined') ? user.role : 'admin';
   const initialView = (() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
@@ -314,7 +354,8 @@ export default function DashboardLayout({ children }) {
       const featureMatch = path.match(/\/(users|patients|doctors|appointments|medical-records|billing|reports)/);
       if (featureMatch) {
         const subPath = path.startsWith('/') ? path.substring(1) : path;
-        return subPath;
+        
+        return subPath.replace(/^dashboard\//, '');
       }
       return `dashboard/${role}`;
     }

@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS `bills` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`created_by) REFERENCES `users` (`id`) ON DELETE SET NULL
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `bill_items` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

@@ -28,6 +28,12 @@ export async function login(email, password) {
 }
 
 export async function register(name, email, password, phone, role_id) {
+  if (role_id === 'admin') {
+    const existingAdmins = await apiCall('/auth/check-admins', 'GET');
+    if (existingAdmins.count > 0) {
+      throw new Error('An administrator already exists. Cannot register another administrator.');
+    }
+  }
   return apiCall('/auth/register', 'POST', { name, email, password, phone, role_id });
 }
 
@@ -132,7 +138,7 @@ export async function updateAppointmentStatus(id, status) {
 export async function getDoctorDashboardData() {
   try {
     const appointmentsResponse = await getAppointments({ limit: 50 });
-    return { success: true, data: appointmentsResponse.data || [] };
+    return { success: true, data: { appointments: appointmentsResponse.data || [] } };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -144,6 +150,14 @@ export async function getBills(filters = {}) {
     if (value) params.append(key, value);
   });
   return apiCall(`/bills?${params.toString()}`);
+}
+
+export async function getMyBills(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.append(key, value);
+  });
+  return apiCall(`/bills/my-bills?${params.toString()}`);
 }
 
 export async function getBill(id) {
@@ -226,11 +240,12 @@ export async function getAdminStats() {
       return {
         success: true,
         data: {
-          patients: response.data.total_patients,
-          appointments: response.data.appointments_count,
+          patients_count: response.data.patients_count,
+          appointments_count: response.data.appointments_count,
           revenue: response.data.revenue,
-          doctors: response.data.staff_on_duty,
-          activity: response.data.weekly_activity || [],
+          doctors_count: response.data.staff_on_duty,
+          users_count: (response.data.patients_count || 0) + (response.data.staff_on_duty || 0),
+          activity: response.data.trends || [],
           recent_activity: response.data.recent_activity || []
         }
       };

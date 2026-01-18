@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser } from '@/context/UserContext';
+import { useNavigation } from '@/context/NavigationContext';
 import { getAppointments, updateAppointmentStatus } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
 import { FaCalendarCheck, FaSearch, FaCheck, FaTimes, FaPlus, FaClock, FaUserInjured, FaUserMd } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 export default function AppointmentsPage() {
-  const router = useRouter();
+  const { navigateTo } = useNavigation();
   const { user, loading: authLoading } = useUser();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,9 +15,9 @@ export default function AppointmentsPage() {
   const [filter, setFilter] = useState('all');
   useEffect(() => {
     if (user && user.role === 'accountant') {
-      router.push(`/dashboard/${user.role}`);
+      navigateTo(`dashboard/${user.role}`);
     }
-  }, [user, router]);
+  }, [user, navigateTo]);
   useEffect(() => {
     fetchData();
   }, [search]);

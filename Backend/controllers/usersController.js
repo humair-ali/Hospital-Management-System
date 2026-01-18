@@ -1,5 +1,5 @@
 const { pool } = require('../config/db');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 async function listUsers(req, res) {
   try {
@@ -58,6 +58,12 @@ async function createUser(req, res) {
         await connection.rollback();
         return res.status(400).json({ success: false, error: `Invalid institutional role: ${role}` });
       }
+    }
+
+    
+    if (role === 'admin' || parseInt(role_id) === 1) {
+      if (connection) await connection.rollback();
+      return res.status(403).json({ success: false, error: 'Unauthorized: Creation of additional system administrators is prohibited.' });
     }
     const [exists] = await connection.query('SELECT id FROM users WHERE email = ?', [email]);
     if (exists.length) {

@@ -1,1 +1,386 @@
-const { pool } = require('../config/db');const { insertAuditLog } = require('../config/audit');async function getBills(req, res) {  try {    const { patient_id, status, page = 1, limit = 10 } = req.query;    const offset = (page - 1) * limit;    let whereClause = `WHERE 1=1`;    const params = [];    const userRole = req.user.role;    const userId = req.user.id;    if (userRole === 'patient') {      const [pResult] = await pool.query('SELECT id FROM patients WHERE user_id = ?', [userId]);      if (pResult.length === 0) {        return res.json({ success: true, data: [], pagination: { total: 0, page, limit, pages: 0 } });      }      const myPatientId = pResult[0].id;      whereClause += ' AND b.patient_id = ?';      params.push(myPatientId);    } else if (['admin', 'accountant'].includes(userRole)) {      if (patient_id) {        whereClause += ' AND b.patient_id = ?';        params.push(patient_id);      }    } else {      return res.status(403).json({ success: false, error: 'Access denied to billing records' });    }    if (status) {      whereClause += ' AND b.status = ?';      params.push(status);    }    const countQuery = `SELECT COUNT(*) as total FROM bills b ${whereClause}`;    const query = `SELECT b.*, p.name as patient_name, p.medical_record_number                 FROM bills b                 JOIN patients p ON b.patient_id = p.id                 ${whereClause}                 ORDER BY b.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;    const [bills] = await pool.query(query, params);    const [countResult] = await pool.query(countQuery, params);    res.json({      success: true,      data: bills,      pagination: {        page: parseInt(page),        limit: parseInt(limit),        total: countResult[0].total,        pages: Math.ceil(countResult[0].total / limit)      }    });  } catch (err) {    console.error('Error fetching bills:', err);    res.status(500).json({ success: false, error: 'Server error' });  }}async function getBill(req, res) {  try {    const { id } = req.params;    const { role: userRole, patient_id: myPatientId } = req.user;    const [bills] = await pool.query(      `SELECT b.*, p.name as patient_name, p.medical_record_number       FROM bills b       JOIN patients p ON b.patient_id = p.id       WHERE b.id = ?`,      [id]    );    if (bills.length === 0) {      return res.status(404).json({ success: false, error: 'Bill not found' });    }    const bill = bills[0];    if (userRole === 'patient' && bill.patient_id !== myPatientId) {      return res.status(403).json({ success: false, error: 'Access denied: You can only view your own bills' });    }    const [items] = await pool.query('SELECT * FROM bill_items WHERE bill_id = ?', [id]);    res.json({      success: true,      data: {        ...bill,        items      }    });  } catch (err) {    console.error('Error fetching bill:', err);    res.status(500).json({ success: false, error: 'Server error' });  }}async function createBill(req, res) {  let connection;  try {    const { patient_id, appointment_id, items, created_by } = req.body;    if (!patient_id || !items || items.length === 0) {      return res.status(400).json({ success: false, error: 'patient_id and items required' });    }    connection = await pool.getConnection();    await connection.beginTransaction();    const totalAmount = items.reduce((sum, item) => {      return sum + (item.quantity || 1) * (item.unit_price || 0);    }, 0);    const now = new Date();    const due = new Date();    due.setDate(now.getDate() + 7);     const [billResult] = await connection.query(      `INSERT INTO bills (patient_id, appointment_id, created_by, total_amount, status, issued_at, due_at)       VALUES (?, ?, ?, ?, 'issued', ?, ?)`,      [patient_id, appointment_id || null, created_by || null, totalAmount, now, due]    );    const billId = billResult.insertId;    const itemPromises = items.map(item => {      return connection.query(        'INSERT INTO bill_items (bill_id, description, quantity, unit_price) VALUES (?, ?, ?, ?)',        [billId, item.description, item.quantity || 1, item.unit_price]      );    });    await Promise.all(itemPromises);    await connection.commit();    await insertAuditLog(req, 'CREATE_BILL', 'bills', billId, null, { patient_id, total_amount: totalAmount });    res.status(201).json({      success: true,      message: 'Bill created successfully',      data: { id: billId, patient_id, total_amount: totalAmount, status: 'issued' }    });  } catch (err) {    if (connection) await connection.rollback();    console.error('Error creating bill:', err);    res.status(500).json({ success: false, error: 'Failed to create bill due to a server error.' });  } finally {    if (connection) connection.release();  }}async function updateBill(req, res) {  try {    const { id } = req.params;    const { status, issued_at, due_at } = req.body;    let query = 'UPDATE bills SET';    const values = [];    if (status) {      query += ' status = ?,';      values.push(status);    }    if (issued_at) {      query += ' issued_at = ?,';      values.push(issued_at);    }    if (due_at) {      query += ' due_at = ?,';      values.push(due_at);    }    if (values.length === 0) {      return res.status(400).json({ success: false, error: 'No fields to update' });    }    query = query.slice(0, -1) + ' WHERE id = ?';    values.push(id);    await pool.query(query, values);    await insertAuditLog(req, 'UPDATE_BILL', 'bills', id, null, req.body);    res.json({ success: true, message: 'Bill updated' });  } catch (err) {    console.error('Error updating bill:', err);    res.status(500).json({ success: false, error: 'Server error' });  }}async function recordPayment(req, res) {  let connection;  try {    const { bill_id } = req.params;    const { amount, method = 'cash', transaction_ref, paid_by } = req.body;    if (!amount) {      return res.status(400).json({ success: false, error: 'Payment amount is required' });    }    connection = await pool.getConnection();    await connection.beginTransaction();    const [bills] = await connection.query('SELECT * FROM bills WHERE id = ? FOR UPDATE', [bill_id]);    if (bills.length === 0) {      await connection.rollback();      return res.status(404).json({ success: false, error: 'Bill not found' });    }    const bill = bills[0];    const { role: userRole, patient_id: myPatientId } = req.user;    if (userRole === 'patient' && bill.patient_id !== myPatientId) {      await connection.rollback();      return res.status(403).json({ success: false, error: 'Access denied: Cannot pay someone else\'s bill' });    }    const [paymentResult] = await connection.query(      `INSERT INTO payments (bill_id, amount, method, transaction_ref, paid_by)       VALUES (?, ?, ?, ?, ?)`,      [bill_id, amount, method, transaction_ref || null, paid_by || null]    );    const [payments] = await connection.query('SELECT SUM(amount) as total_paid FROM payments WHERE bill_id = ?', [bill_id]);    const totalPaid = payments[0].total_paid || 0;    let newStatus = 'issued';    if (totalPaid > 0) {      newStatus = totalPaid >= bill.total_amount ? 'paid' : 'partial';    }    await connection.query(      'UPDATE bills SET status = ?, total_paid = ? WHERE id = ?',      [newStatus, totalPaid, bill_id]    );    await connection.commit();    await insertAuditLog(req, 'RECORD_PAYMENT', 'payments', paymentResult.insertId, null, { bill_id, amount });    res.status(201).json({      success: true,      message: 'Payment recorded successfully',      data: {        paymentId: paymentResult.insertId,        bill_id,        new_status: newStatus,        total_paid: totalPaid      }    });  } catch (err) {    if (connection) await connection.rollback();    console.error('Error recording payment:', err);    res.status(500).json({ success: false, error: 'Failed to record payment due to a server error.' });  } finally {    if (connection) connection.release();  }}module.exports = { getBills, getBill, createBill, updateBill, recordPayment };
+const { pool } = require('../config/db');
+const { insertAuditLog } = require('../config/audit');
+
+async function getBills(req, res) {
+  try {
+    const { patient_id, status, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+    let whereClause = `WHERE 1=1`;
+    const params = [];
+    const userRole = req.user.role;
+    const userId = req.user.id;
+
+    if (userRole === 'patient') {
+      const [pResult] = await pool.query('SELECT id FROM patients WHERE user_id = ?', [userId]);
+      if (pResult.length === 0) {
+        return res.json({ success: true, data: [], pagination: { total: 0, page, limit, pages: 0 } });
+      }
+      const myPatientId = pResult[0].id;
+      whereClause += ' AND b.patient_id = ?';
+      params.push(myPatientId);
+    } else if (userRole === 'doctor') {
+      const [dResult] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [userId]);
+      if (dResult.length === 0) {
+        return res.json({ success: true, data: [], pagination: { total: 0, page, limit, pages: 0 } });
+      }
+      const myDoctorId = dResult[0].id;
+      
+      whereClause += ' AND b.patient_id IN (SELECT patient_id FROM appointments WHERE doctor_id = ?)';
+      params.push(myDoctorId);
+    } else if (['admin', 'accountant'].includes(userRole)) {
+      if (patient_id) {
+        whereClause += ' AND b.patient_id = ?';
+        params.push(patient_id);
+      }
+    } else {
+      return res.status(403).json({ success: false, error: 'Access denied to billing records' });
+    }
+
+    if (status) {
+      whereClause += ' AND b.status = ?';
+      params.push(status);
+    }
+
+    const countQuery = `SELECT COUNT(*) as total FROM bills b ${whereClause}`;
+    const query = `SELECT b.*, p.name as patient_name, p.medical_record_number 
+                 FROM bills b 
+                 JOIN patients p ON b.patient_id = p.id 
+                 ${whereClause} 
+                 ORDER BY b.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+    const [bills] = await pool.query(query, params);
+    const [countResult] = await pool.query(countQuery, params);
+
+    res.json({
+      success: true,
+      data: bills,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: countResult[0].total,
+        pages: Math.ceil(countResult[0].total / limit)
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching bills:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+
+async function getBill(req, res) {
+  try {
+    const { id } = req.params;
+    const { role: userRole, id: userId } = req.user;
+
+    const [bills] = await pool.query(
+      `SELECT b.*, p.name as patient_name, p.medical_record_number 
+       FROM bills b 
+       JOIN patients p ON b.patient_id = p.id 
+       WHERE b.id = ?`,
+      [id]
+    );
+
+    if (bills.length === 0) {
+      return res.status(404).json({ success: false, error: 'Bill not found' });
+    }
+
+    const bill = bills[0];
+
+    
+    if (userRole === 'patient') {
+      const [pResult] = await pool.query('SELECT id FROM patients WHERE user_id = ?', [userId]);
+      const myPatientId = pResult[0]?.id;
+      if (bill.patient_id !== myPatientId) {
+        return res.status(403).json({ success: false, error: 'Access denied: You can only view your own bills' });
+      }
+    } else if (userRole === 'doctor') {
+      const [dResult] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [userId]);
+      const myDoctorId = dResult[0]?.id;
+      const [assignment] = await pool.query(
+        'SELECT id FROM appointments WHERE doctor_id = ? AND patient_id = ? LIMIT 1',
+        [myDoctorId, bill.patient_id]
+      );
+      if (assignment.length === 0) {
+        return res.status(403).json({ success: false, error: 'Access denied: Patient not assigned to you' });
+      }
+    }
+
+    const [items] = await pool.query('SELECT * FROM bill_items WHERE bill_id = ?', [id]);
+    res.json({
+      success: true,
+      data: {
+        ...bill,
+        items
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching bill:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+
+async function createBill(req, res) {
+  let connection;
+  try {
+    const { patient_id, appointment_id, items, created_by } = req.body;
+    if (!patient_id || !items || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'patient_id and items required' });
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const totalAmount = items.reduce((sum, item) => {
+      return sum + (item.quantity || 1) * (item.unit_price || 0);
+    }, 0);
+
+    const now = new Date();
+    const due = new Date();
+    due.setDate(now.getDate() + 7);
+
+    const [billResult] = await connection.query(
+      `INSERT INTO bills (patient_id, appointment_id, created_by, total_amount, status, issued_at, due_at) 
+       VALUES (?, ?, ?, ?, 'issued', ?, ?)`,
+      [patient_id, appointment_id || null, created_by || null, totalAmount, now, due]
+    );
+
+    const billId = billResult.insertId;
+    const itemPromises = items.map(item => {
+      return connection.query(
+        'INSERT INTO bill_items (bill_id, description, quantity, unit_price) VALUES (?, ?, ?, ?)',
+        [billId, item.description, item.quantity || 1, item.unit_price]
+      );
+    });
+
+    await Promise.all(itemPromises);
+    await connection.commit();
+
+    await insertAuditLog(req, 'CREATE_BILL', 'bills', billId, null, { patient_id, total_amount: totalAmount });
+
+    res.status(201).json({
+      success: true,
+      message: 'Bill created successfully',
+      data: { id: billId, patient_id, total_amount: totalAmount, status: 'issued' }
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error('Error creating bill:', err);
+    res.status(500).json({ success: false, error: 'Failed to create bill due to a server error.' });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+async function updateBill(req, res) {
+  try {
+    const { id } = req.params;
+    const { status, issued_at, due_at } = req.body;
+
+    let query = 'UPDATE bills SET';
+    const values = [];
+
+    if (status) {
+      query += ' status = ?,';
+      values.push(status);
+    }
+    if (issued_at) {
+      query += ' issued_at = ?,';
+      values.push(issued_at);
+    }
+    if (due_at) {
+      query += ' due_at = ?,';
+      values.push(due_at);
+    }
+
+    if (values.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    query = query.slice(0, -1) + ' WHERE id = ?';
+    values.push(id);
+
+    await pool.query(query, values);
+    await insertAuditLog(req, 'UPDATE_BILL', 'bills', id, null, req.body);
+
+    res.json({ success: true, message: 'Bill updated' });
+  } catch (err) {
+    console.error('Error updating bill:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+
+async function recordPayment(req, res) {
+  let connection;
+  try {
+    const { bill_id } = req.params;
+    const { amount, method = 'cash', transaction_ref, paid_by } = req.body;
+
+    if (!amount) {
+      return res.status(400).json({ success: false, error: 'Payment amount is required' });
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [bills] = await connection.query('SELECT * FROM bills WHERE id = ? FOR UPDATE', [bill_id]);
+    if (bills.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: 'Bill not found' });
+    }
+
+    const bill = bills[0];
+    const userRole = req.user.role;
+    const userId = req.user.id;
+
+    if (userRole === 'patient') {
+      const [pResult] = await connection.query('SELECT id FROM patients WHERE user_id = ?', [userId]);
+      const myPatientId = pResult[0]?.id;
+      if (bill.patient_id !== myPatientId) {
+        await connection.rollback();
+        return res.status(403).json({ success: false, error: 'Access denied: Cannot pay someone else\'s bill' });
+      }
+    }
+
+    const [paymentResult] = await connection.query(
+      `INSERT INTO payments (bill_id, amount, method, transaction_ref, paid_by) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [bill_id, amount, method, transaction_ref || null, paid_by || null]
+    );
+
+    const [payments] = await connection.query('SELECT SUM(amount) as total_paid FROM payments WHERE bill_id = ?', [bill_id]);
+    const totalPaid = payments[0].total_paid || 0;
+
+    let newStatus = 'issued';
+    if (totalPaid > 0) {
+      newStatus = totalPaid >= bill.total_amount ? 'paid' : 'partial';
+    }
+
+    await connection.query(
+      'UPDATE bills SET status = ?, total_paid = ? WHERE id = ?',
+      [newStatus, totalPaid, bill_id]
+    );
+
+    await connection.commit();
+    await insertAuditLog(req, 'RECORD_PAYMENT', 'payments', paymentResult.insertId, null, { bill_id, amount });
+
+    res.status(201).json({
+      success: true,
+      message: 'Payment recorded successfully',
+      data: {
+        paymentId: paymentResult.insertId,
+        bill_id,
+        new_status: newStatus,
+        total_paid: totalPaid
+      }
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error('Error recording payment:', err);
+    res.status(500).json({ success: false, error: 'Failed to record payment due to a server error.' });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+async function getMyBills(req, res) {
+  try {
+    const { status, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+    let whereClause = `WHERE 1=1`;
+    const params = [];
+    const userRole = req.user.role;
+    const userId = req.user.id;
+
+    if (userRole === 'patient') {
+      const [pResult] = await pool.query('SELECT id FROM patients WHERE user_id = ?', [userId]);
+      if (pResult.length === 0) {
+        return res.json({ success: true, data: [], pagination: { total: 0, page, limit, pages: 0 } });
+      }
+      const myPatientId = pResult[0].id;
+      whereClause += ' AND b.patient_id = ?';
+      params.push(myPatientId);
+    } else if (userRole === 'doctor') {
+      const [dResult] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [userId]);
+      if (dResult.length === 0) {
+        return res.json({ success: true, data: [], pagination: { total: 0, page, limit, pages: 0 } });
+      }
+      const myDoctorId = dResult[0].id;
+      
+      whereClause += ' AND b.patient_id IN (SELECT patient_id FROM appointments WHERE doctor_id = ?)';
+      params.push(myDoctorId);
+    } else {
+      return res.status(403).json({ success: false, error: 'Access denied to billing records' });
+    }
+
+    if (status) {
+      whereClause += ' AND b.status = ?';
+      params.push(status);
+    }
+
+    const countQuery = `SELECT COUNT(*) as total FROM bills b ${whereClause}`;
+    const query = `SELECT b.*, p.name as patient_name, p.medical_record_number 
+                 FROM bills b 
+                 JOIN patients p ON b.patient_id = p.id 
+                 ${whereClause} 
+                 ORDER BY b.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+    const [bills] = await pool.query(query, params);
+    const [countResult] = await pool.query(countQuery, params);
+
+    res.json({
+      success: true,
+      data: bills,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: countResult[0].total,
+        pages: Math.ceil(countResult[0].total / limit)
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching my bills:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+
+async function deleteBill(req, res) {
+  let connection;
+  try {
+    const { id } = req.params;
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    
+    const [bills] = await connection.query('SELECT * FROM bills WHERE id = ? FOR UPDATE', [id]);
+    if (bills.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: 'Bill not found' });
+    }
+
+    const bill = bills[0];
+    
+    if (bill.status === 'paid' || bill.status === 'partial') {
+      
+      
+      
+    }
+
+    
+    
+    await connection.query('DELETE FROM bill_items WHERE bill_id = ?', [id]);
+    await connection.query('DELETE FROM payments WHERE bill_id = ?', [id]); 
+    await connection.query('DELETE FROM bills WHERE id = ?', [id]);
+
+    await connection.commit();
+    await insertAuditLog(req, 'DELETE_BILL', 'bills', id, null, { deleted_amount: bill.total_amount });
+
+    res.json({ success: true, message: 'Bill deleted successfully' });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error('Error deleting bill:', err);
+    res.status(500).json({ success: false, error: 'Server error deleting bill' });
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+module.exports = { getBills, getBill, createBill, updateBill, recordPayment, getMyBills, deleteBill };

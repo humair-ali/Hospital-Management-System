@@ -88,12 +88,11 @@ export default function NewUserPage() {
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 >
-                  <option value="admin">System Administrator</option>
-                  <option value="doctor">Medical Specialist</option>
-                  <option value="nurse">Nursing Personnel</option>
-                  <option value="receptionist">Guest Relations / Front Desk</option>
-                  <option value="accountant">Financial Comptroller</option>
-                  <option value="patient">Authorized Patient Profile</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="receptionist">Receptionist</option>
+                  <option value="accountant">Accountant</option>
+                  <option value="patient">Patient</option>
                 </select>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
                   <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">

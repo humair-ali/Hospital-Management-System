@@ -1,1 +1,132 @@
-'use client';import { useState, useEffect } from 'react';import { getMedicalRecords, deleteMedicalRecord } from '@/lib/api';import { SPALink } from '@/components/SPALink';import { FaClipboardList, FaSearch, FaTrash, FaPlus, FaChevronRight, FaFileInvoiceDollar } from 'react-icons/fa';import { toast } from 'react-toastify';import { useRouter } from 'next/navigation';import { useUser } from '@/context/UserContext';export default function MedicalRecordsPage() {  const router = useRouter();  const { user, loading: authLoading } = useUser();  const [records, setRecords] = useState([]);  const [loading, setLoading] = useState(true);  const [search, setSearch] = useState('');  useEffect(() => {    if (user && ['receptionist', 'accountant'].includes(user.role)) {      router.push(`/dashboard/${user.role}`);    }  }, [user, router]);  useEffect(() => {    if (user && !['receptionist', 'accountant'].includes(user.role)) fetchRecords();  }, [user]);  async function fetchRecords() {    setLoading(true);    try {      const res = await getMedicalRecords();      setRecords(res.data || []);    } catch (err) {      toast.error('Failed to sync clinical database');    } finally {      setLoading(false);    }  }  const handleDelete = async (id) => {    if (!confirm('Permanently delete this clinical record? This action cannot be undone.')) return;    try {      await deleteMedicalRecord(id);      toast.success('Record purged successfully');      fetchRecords();    } catch (err) {      toast.error('Failed to delete record');    }  };  const filteredRecords = records.filter(r =>    r.patient_name?.toLowerCase().includes(search.toLowerCase()) ||    r.diagnosis?.toLowerCase().includes(search.toLowerCase())  );  return (    <div className="space-y-8 animate-fade-in">      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-gray-200/60">        <div>          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Clinical Repository</h1>          <p className="text-sm text-gray-500 mt-1 font-medium italic">Authorized access to patient medical history and diagnostics</p>        </div>        {user && ['admin', 'doctor'].includes(user.role) && (          <SPALink href="medical-records/new" className="btn-primary shadow-lg shadow-primary-500/20 px-6 flex items-center gap-2">            <FaPlus size={14} /> New Clinical Audit          </SPALink>        )}      </div>      <div className="card-elevated p-4 bg-white border border-gray-100">        <div className="input-with-icon-wrapper w-full md:max-w-xl group">          <div className="input-icon-container">            <FaSearch className="text-gray-400 group-focus-within:text-primary-500 transition-colors" />          </div>          <input            type="text"            placeholder="Search repository by patient name, diagnosis, or record ID..."            className="input-field input-field-with-icon h-12 bg-gray-50/50 focus:bg-white border-transparent focus:border-primary-500 text-sm font-medium"            value={search}            onChange={(e) => setSearch(e.target.value)}          />        </div>      </div>      <div className="grid grid-cols-1 gap-6">        {loading || authLoading ? (          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">            {[1, 2, 3, 4].map(i => (              <div key={i} className="h-44 bg-white rounded-3xl border border-gray-100 animate-pulse-slow shadow-sm"></div>            ))}          </div>        ) : filteredRecords.length === 0 ? (          <div className="card-elevated p-20 text-center bg-white">            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">              <FaClipboardList size={32} className="text-gray-300" />            </div>            <h3 className="text-xl font-bold text-gray-900 mb-2">Registry Empty</h3>            <p className="text-gray-500 max-w-xs mx-auto text-sm font-medium">No clinical records match your current search parameters or the database is empty.</p>          </div>        ) : (          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">            {filteredRecords.map((r) => (              <div key={r.id} className="card-elevated group p-6 bg-white border border-gray-100 hover:border-primary-200 transition-all duration-300 flex justify-between items-start">                <div className="space-y-4 flex-1">                  <div>                    <div className="flex items-center gap-3 mb-1">                      <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></div>                      <h3 className="text-xl font-black text-gray-900 tracking-tight group-hover:text-primary-600 transition-colors uppercase">{r.patient_name}</h3>                    </div>                    <div className="flex items-center gap-2 mt-2">                      <span className="text-[10px] font-black px-2 py-1 bg-primary-50 text-primary-700 rounded-md uppercase tracking-wider">Diagnosis</span>                      <p className="text-sm text-gray-700 font-bold italic line-clamp-1">"{r.diagnosis}"</p>                    </div>                  </div>                  <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">                    <p className="text-gray-600 text-xs font-medium line-clamp-2 leading-relaxed italic">{r.treatment || 'No treatment protocol documented...'}</p>                  </div>                  <div className="flex items-center justify-between pt-2 border-t border-gray-50">                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-2">                      ID: #{r.id}                    </span>                    <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">                      {new Date(r.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}                    </span>                  </div>                </div>                <div className="flex flex-col gap-2 ml-6">                  <SPALink href={`medical-records/${r.id}/edit`} className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-all shadow-sm group-hover:scale-105 active:scale-95" title="Modify Entry">                    <FaChevronRight size={14} />                  </SPALink>                  <button onClick={() => handleDelete(r.id)} className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all shadow-sm group-hover:scale-105 active:scale-95" title="Purge Record">                    <FaTrash size={14} />                  </button>                </div>              </div>            ))}          </div>        )}      </div>    </div>  );}
+'use client';
+import { useState, useEffect } from 'react';
+import { getMedicalRecords, deleteMedicalRecord } from '@/lib/api';
+import { SPALink } from '@/components/SPALink';
+import { useNavigation } from '@/context/NavigationContext';
+import { useUser } from '@/context/UserContext';
+import { FaClipboardList, FaSearch, FaTrash, FaPlus, FaChevronRight, FaFileInvoiceDollar } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+export default function MedicalRecordsPage() {
+  const { navigateTo } = useNavigation();
+  const { user, loading: authLoading } = useUser();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    if (user && ['receptionist', 'accountant'].includes(user.role)) {
+      navigateTo(`dashboard/${user.role}`);
+    }
+  }, [user, navigateTo]);
+  useEffect(() => {
+    if (user && !['receptionist', 'accountant'].includes(user.role)) fetchRecords();
+  }, [user]);
+  async function fetchRecords() {
+    setLoading(true);
+    try {
+      const res = await getMedicalRecords();
+      setRecords(res.data || []);
+    } catch (err) {
+      toast.error('Failed to sync clinical database');
+    } finally {
+      setLoading(false);
+    }
+  }
+  const handleDelete = async (id) => {
+    if (!confirm('Permanently delete this clinical record? This action cannot be undone.')) return;
+    try {
+      await deleteMedicalRecord(id);
+      toast.success('Record purged successfully');
+      fetchRecords();
+    } catch (err) {
+      toast.error('Failed to delete record');
+    }
+  };
+  const filteredRecords = records.filter(r =>
+    r.patient_name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.diagnosis?.toLowerCase().includes(search.toLowerCase())
+  );
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-gray-200/60">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Clinical Repository</h1>
+          <p className="text-sm text-gray-500 mt-1 font-medium italic">Authorized access to patient medical history and diagnostics</p>
+        </div>
+        {user && ['admin', 'doctor'].includes(user.role) && (
+          <SPALink href="medical-records/new" className="btn-primary shadow-lg shadow-primary-500/20 px-6 flex items-center gap-2">
+            <FaPlus size={14} /> New Clinical Audit
+          </SPALink>
+        )}
+      </div>
+      <div className="card-elevated p-4 bg-white border border-gray-100">
+        <div className="input-with-icon-wrapper w-full md:max-w-xl group">
+          <div className="input-icon-container">
+            <FaSearch className="text-gray-400 group-focus-within:text-primary-500 transition-colors" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search repository by patient name, diagnosis, or record ID..."
+            className="input-field input-field-with-icon h-12 bg-gray-50/50 focus:bg-white border-transparent focus:border-primary-500 text-sm font-medium"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6">
+        {loading || authLoading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-44 bg-white rounded-3xl border border-gray-100 animate-pulse-slow shadow-sm"></div>
+            ))}
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="card-elevated p-20 text-center bg-white">
+            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <FaClipboardList size={32} className="text-gray-300" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Registry Empty</h3>
+            <p className="text-gray-500 max-w-xs mx-auto text-sm font-medium">No clinical records match your current search parameters or the database is empty.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredRecords.map((r) => (
+              <div key={r.id} className="card-elevated group p-6 bg-white border border-gray-100 hover:border-primary-200 transition-all duration-300 flex justify-between items-start">
+                <div className="space-y-4 flex-1">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></div>
+                      <h3 className="text-xl font-black text-gray-900 tracking-tight group-hover:text-primary-600 transition-colors uppercase">{r.patient_name}</h3>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[10px] font-black px-2 py-1 bg-primary-50 text-primary-700 rounded-md uppercase tracking-wider">Diagnosis</span>
+                      <p className="text-sm text-gray-700 font-bold italic line-clamp-1">"{r.diagnosis}"</p>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                    <p className="text-gray-600 text-xs font-medium line-clamp-2 leading-relaxed italic">{r.treatment || 'No treatment protocol documented...'}</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-2">
+                      ID: #{r.id}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">
+                      {new Date(r.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 ml-6">
+                  <SPALink href={`medical-records/${r.id}/edit`} className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-all shadow-sm group-hover:scale-105 active:scale-95" title="Modify Entry">
+                    <FaChevronRight size={14} />
+                  </SPALink>
+                  <button onClick={() => handleDelete(r.id)} className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all shadow-sm group-hover:scale-105 active:scale-95" title="Purge Record">
+                    <FaTrash size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

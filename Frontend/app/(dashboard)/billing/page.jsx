@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser } from '@/context/UserContext';
+import { useNavigation } from '@/context/NavigationContext';
 import { getBills } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
 import {
@@ -14,19 +14,32 @@ import { StatCard } from '@/components/ui/StatCard';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 export default function BillingPage() {
-  const router = useRouter();
+  const { navigateTo } = useNavigation();
   const { user, loading: authLoading } = useUser();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   useEffect(() => {
     if (user && !['admin', 'accountant'].includes(user.role)) {
-      router.push(`/dashboard/${user.role}`);
+      navigateTo(`dashboard/${user.role}`);
     }
-  }, [user, router]);
+  }, [user, navigateTo]);
+
   useEffect(() => {
     async function fetchData() {
+      
+      if (!user || authLoading) {
+        setLoading(false);
+        return;
+      }
+
+      if (!['admin', 'accountant'].includes(user.role)) {
+        setLoading(false);
+        return;
+      }
+
       try {
+        setLoading(true);
         const res = await getBills({ search });
         setBills(res.data || []);
       } catch (err) {
@@ -36,7 +49,7 @@ export default function BillingPage() {
       }
     }
     fetchData();
-  }, [search]);
+  }, [search, user, authLoading]);
   const actions = (
     <div className="flex gap-2">
       <SPALink href="billing/new" className="btn-primary flex items-center gap-2">
@@ -60,7 +73,7 @@ export default function BillingPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <StatCard
           title="Total Receivables"
-          value={`Rs.${totalOutstanding.toLocaleString()}`}
+          value={`PKR ${totalOutstanding.toLocaleString()}`}
           icon={FaMoneyBillWave}
           variant="indigo"
           description={`${bills.filter((b) => b.status !== 'paid').length} awaiting settlement`}
@@ -68,7 +81,7 @@ export default function BillingPage() {
         />
         <StatCard
           title="Settled Funds"
-          value={`Rs.${totalPaid.toLocaleString()}`}
+          value={`PKR ${totalPaid.toLocaleString()}`}
           icon={FaFileInvoiceDollar}
           variant="emerald"
           description="Verified revenue"
@@ -97,11 +110,32 @@ export default function BillingPage() {
               />
             </div>
           </div>
-          <div className="h-14 px-8 bg-white border border-gray-100 rounded-2xl flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            <FaCheckCircle className="text-emerald-500" /> Fiscal Cycle Active
+
+          <div className="flex gap-4">
+            <select
+              onChange={(e) => {
+                const val = e.target.value.toLowerCase();
+                if (val === 'all') {
+                  getBills({ search }).then(res => setBills(res.data || []));
+                } else {
+                  setBills(prev => prev.filter(b => b.status === val));
+                }
+              }}
+              className="h-14 px-6 bg-white border border-gray-100 rounded-2xl outline-none text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer hover:border-primary-100 transition-colors"
+              defaultValue="all"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Settled</option>
+            </select>
+
+            <div className="h-14 px-8 bg-white border border-gray-100 rounded-2xl flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">
+              <FaCheckCircle className="text-emerald-500" /> Fiscal Cycle Active
+            </div>
           </div>
         </div>
       </div>
+
       <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-gray-200/50 overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] border-collapse">
@@ -149,7 +183,7 @@ export default function BillingPage() {
                     <td className="py-10">
                       <div className="flex flex-col">
                         <p className="font-black text-gray-900 text-lg leading-none tracking-tighter">
-                          Rs.{parseFloat(bill.total_amount || 0).toLocaleString()}
+                          PKR {parseFloat(bill.total_amount || 0).toLocaleString()}
                         </p>
                         <p className="text-[9px] font-black text-emerald-500 uppercase mt-2 tracking-widest">Gross Total</p>
                       </div>
@@ -163,9 +197,16 @@ export default function BillingPage() {
                       </span>
                     </td>
                     <td className="py-10 pr-10 text-right">
-                      <SPALink href={`billing/${bill.id}`} className="btn-secondary py-3 px-6 text-[10px] font-black uppercase tracking-widest">
-                        Details <FaArrowRight className="ml-2 inline-block opacity-50" />
-                      </SPALink>
+                      <div className="flex justify-end items-center gap-3">
+                        {bill.status !== 'paid' && (
+                          <SPALink href={`billing/${bill.id}`} className="btn-primary py-3 px-5 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-600 shadow-lg shadow-emerald-500/20">
+                            <FaMoneyBillWave size={12} /> Process Payment
+                          </SPALink>
+                        )}
+                        <SPALink href={`billing/${bill.id}`} className="btn-secondary py-3 px-6 text-[10px] font-black uppercase tracking-widest">
+                          Details <FaArrowRight className="ml-2 inline-block opacity-50" />
+                        </SPALink>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -174,6 +215,6 @@ export default function BillingPage() {
           </table>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

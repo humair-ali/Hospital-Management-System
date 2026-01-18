@@ -1,12 +1,49 @@
-const sqlite3 = require('sqlite3').verbose(); const path = require('path'); const dbPath = path.resolve(__dirname, '../../Database/hms_hospital.db'); console.log(`📦 Using SQLite Database: ${dbPath}`); const db = new sqlite3.Database(dbPath, (err) => { if (err) console.error('❌ SQLite Connection Error:', err.message); else { console.log('✅ Connected to SQLite Database'); db.run('PRAGMA foreign_keys = ON'); } }); const promiseQuery = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        if (sql.trim().toUpperCase().startsWith('SELECT')) {
-            db.all(sql, params, (err, rows) => {
-                if (err) reject(err); else resolve([rows, []]);
-            });
-        } else { db.run(sql, params, function (err) { if (err) reject(err); else resolve([{ insertId: this.lastID, affectedRows: this.changes }, []]); }); }
-    });
-}; const fakeConnection = { release: () => { }, query: promiseQuery, execute: promiseQuery, beginTransaction: () => Promise.resolve(), commit: () => Promise.resolve(), rollback: () => Promise.resolve() }; const pool = { query: promiseQuery, execute: promiseQuery, getConnection: async () => fakeConnection }; module.exports = {
-    pool: pool,
-    query: promiseQuery, testConnection: async () => { return new Promise((resolve) => { db.get("SELECT 1", (err) => resolve(!err)); }); }, getConnection: () => fakeConnection
+const mysql = require('mysql2/promise');
+require('dotenv').config();
+
+
+const pool = mysql.createPool({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'railway',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    waitForConnections: true,
+    connectionLimit: 10,
+    maxIdle: 10, 
+    idleTimeout: 60000, 
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    
+    ssl: process.env.DB_SSL === 'true' ? {
+        rejectUnauthorized: true
+    } : {
+        
+        rejectUnauthorized: false
+    }
+});
+
+
+const testConnection = async () => {
+    try {
+        const connection = await pool.getConnection();
+        console.log('✅ MySQL Database connected successfully');
+        console.log(`   Host: ${process.env.DB_HOST}`);
+        console.log(`   Database: ${process.env.DB_NAME}`);
+        connection.release();
+        return true;
+    } catch (err) {
+        console.error('❌ MySQL Connection Error:', err.message);
+        console.error('   Please check your .env database configuration');
+        return false;
+    }
 };
+
+
+process.on('SIGTERM', async () => {
+    console.log('Closing MySQL connection pool...');
+    await pool.end();
+});
+
+module.exports = { pool, testConnection };
