@@ -56,7 +56,7 @@ export default function HomePage() {
             <p className="text-gray-400 text-[9px] font-black uppercase tracking-[0.3em] mt-4">Secure Personnel Portal</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6 relative z-10">
+          <form onSubmit={handleLogin} className="space-y-6 relative z-10" autoComplete="off">
             <div className="space-y-6">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">Email</label>
               <div className="input-with-icon-wrapper group">
@@ -70,6 +70,7 @@ export default function HomePage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -87,6 +88,7 @@ export default function HomePage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  autoComplete="new-password"
                 />
               </div>
             </div>
