@@ -18,8 +18,8 @@ export default function HomePage() {
     try {
       const result = await performLogin(email, password);
       if (result.success && result.user) {
+        toast.success(`Successfully Login`, { autoClose: 1000 });
         router.push('/dashboard');
-        toast.success(`Welcome back, ${result.user.name}`, { autoClose: 2000 });
       } else {
         toast.error(result.error || 'Login failed');
         setLoading(false);

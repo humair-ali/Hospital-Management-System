@@ -26,16 +26,11 @@ export default function NewUserPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (!formData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        throw new Error('Please enter a valid email address');
-      }
       await createUser(formData);
-      toast.success('Personnel successfully integrated into system');
+      toast.success('User Added', { autoClose: 1000 });
       navigateTo('users');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || err.message || 'Onboarding failed';
-      toast.error(errorMsg);
-    } finally {
+      toast.error(err.response?.data?.error || 'Failed');
       setLoading(false);
     }
   };

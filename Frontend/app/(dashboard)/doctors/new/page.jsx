@@ -28,16 +28,13 @@ export default function NewDoctorPage() {
   };
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
-    setSuccess('');
     setLoading(true);
     try {
       await registerDoctor(formData);
-      setSuccess('Medical specialist registered successfully!');
-      setTimeout(() => navigateTo('doctors'), 500);
+      toast.success('Doctor Added', { autoClose: 1000 });
+      navigateTo('doctors');
     } catch (err) {
-      setError(err.message || 'Failed to register doctor');
-    } finally {
+      toast.error(err.response?.data?.error || 'Failed');
       setLoading(false);
     }
   }
@@ -81,10 +78,10 @@ export default function NewDoctorPage() {
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {}
+          { }
           <div className="card-elevated p-8 bg-white border border-gray-100 space-y-6">
             <h3 className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.2em] pb-3 border-b border-gray-50 flex items-center gap-2">
-               Account Credentials
+              Account Credentials
             </h3>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -138,10 +135,10 @@ export default function NewDoctorPage() {
               </div>
             </div>
           </div>
-          {}
+          { }
           <div className="card-elevated p-8 bg-white border border-gray-100 space-y-6">
             <h3 className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.2em] pb-3 border-b border-gray-50 flex items-center gap-2">
-               Clinical Profile
+              Clinical Profile
             </h3>
             <div className="space-y-4">
               <div className="space-y-2">

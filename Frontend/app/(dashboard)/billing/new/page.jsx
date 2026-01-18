@@ -55,11 +55,10 @@ export default function NewBillPage() {
         items
       };
       await createBill(payload);
-      toast.success('Fiscal Record Initialized');
+      toast.success('Invoice Created', { autoClose: 1000 });
       navigateTo('billing');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fiscal Transaction Failure');
-    } finally {
+      toast.error(err.response?.data?.error || 'Failed');
       setLoading(false);
     }
   };

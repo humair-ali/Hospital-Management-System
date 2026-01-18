@@ -53,11 +53,10 @@ export default function NewAppointmentPage() {
         reason: formData.reason
       };
       await createAppointment(payload);
-      toast.success('Clinical Encounter Scheduled');
+      toast.success('Appointment Added', { autoClose: 1000 });
       navigateTo('appointments');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Strategic Scheduling Failure');
-    } finally {
+      toast.error(err.response?.data?.error || 'Failed');
       setLoading(false);
     }
   };
@@ -85,10 +84,10 @@ export default function NewAppointmentPage() {
       </div>
       <form onSubmit={handleSubmit} className="card-elevated p-8 bg-white border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="space-y-8">
-          {}
+          { }
           <div>
             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-3 mb-6 flex items-center gap-2">
-               Appointment Details
+              Appointment Details
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
@@ -121,10 +120,10 @@ export default function NewAppointmentPage() {
               </div>
             </div>
           </div>
-          {}
+          { }
           <div>
             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-3 mb-6 flex items-center gap-2">
-               Schedule
+              Schedule
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="form-group">
@@ -169,10 +168,10 @@ export default function NewAppointmentPage() {
               </div>
             </div>
           </div>
-          {}
+          { }
           <div>
             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-3 mb-6 flex items-center gap-2">
-               Reason for Visit
+              Reason for Visit
             </h3>
             <textarea
               required
