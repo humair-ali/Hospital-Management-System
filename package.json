@@ -1,0 +1,12 @@
+{
+    "name": "hms-hospital-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "build": "echo 'Building via Vercel Configuration'",
+        "install-all": "cd Frontend && npm install && cd ../Backend && npm install"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

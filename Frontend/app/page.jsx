@@ -42,7 +42,7 @@ export default function HomePage() {
           </div>
           <h1 className="text-4xl font-black text-gray-900 tracking-tighter leading-tight uppercase flex flex-col">
             <span className="text-primary-600 text-sm tracking-[0.4em] mb-2">Hospital Internal</span>
-            HMS Enterprise
+            HMS Enterprise <span className="text-xs text-emerald-500 block normal-case tracking-normal font-bold">● V2 LIVE (Fixed)</span>
           </h1>
           <p className="text-gray-400 font-bold text-[10px] mt-4 tracking-[0.3em] uppercase opacity-70">Secured Clinical Portal • Node 01-HMS (Nested Fix v2)</p>
         </div>
