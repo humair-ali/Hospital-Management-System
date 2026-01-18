@@ -48,7 +48,7 @@ export const GlobalSearch = memo(() => {
     };
 
     return (
-        <div className="relative max-w-xs w-full group hidden sm:block">
+        <div className="relative max-w-xs w-full group block flex-1 md:flex-none">
             <div className="input-with-icon-wrapper">
                 <div className="input-icon-container">
                     <FaSearch className="text-gray-400 group-focus-within:text-primary-500 transition-colors" size={14} />

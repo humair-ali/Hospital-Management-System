@@ -27,7 +27,7 @@ function DashboardShell() {
     { id: 1, title: 'System Synchronized', message: 'Hospital clinical registry is up to date.', time: 'Just now', type: 'success' },
     { id: 2, title: 'Welcome to CareFlow', message: 'You have logged as ' + user?.role + '.', time: '5m ago', type: 'info' }
   ]);
-  const [hasUnread, setHasUnread] = useState(false); 
+  const [hasUnread, setHasUnread] = useState(false);
 
   const handleProfileUpload = async (e) => {
     const file = e.target.files[0];
@@ -332,7 +332,7 @@ function DashboardShell() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8 scrollbar-thin relative z-0 bg-gray-50/50">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin relative z-0 bg-gray-50/50">
           <div className="fixed top-0 right-0 w-[800px] h-[800px] bg-primary-100/20 rounded-full blur-[120px] -z-10 pointer-events-none translate-x-1/3 -translate-y-1/3"></div>
           <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-violet-100/20 rounded-full blur-[100px] -z-10 pointer-events-none -translate-x-1/4 translate-y-1/4"></div>
           <div className="max-w-[1600px] mx-auto pb-10 relative z-10">
@@ -354,7 +354,7 @@ export default function DashboardLayout({ children }) {
       const featureMatch = path.match(/\/(users|patients|doctors|appointments|medical-records|billing|reports)/);
       if (featureMatch) {
         const subPath = path.startsWith('/') ? path.substring(1) : path;
-        
+
         return subPath.replace(/^dashboard\//, '');
       }
       return `dashboard/${role}`;

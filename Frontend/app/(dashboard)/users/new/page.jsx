@@ -164,7 +164,7 @@ export default function NewUserPage() {
             </div>
           </div>
 
-          <div className="pt-10 border-t border-slate-100 flex flex-col md:flex-row gap-6">
+          <div className="pt-10 border-t border-slate-100 flex flex-col sm:flex-row gap-6">
             <button
               type="submit"
               disabled={loading}
