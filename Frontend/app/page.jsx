@@ -75,7 +75,10 @@ export default function HomePage() {
                   placeholder="Enter your email"
                   required
                   autoComplete="off"
-                  name="email_login_field_v2"
+                  name="user_login_email_field_v3_random"
+                  id="user_login_email_field_v3_random"
+                  readOnly={!email && true}
+                  onFocus={(e) => e.target.removeAttribute('readonly')}
                 />
               </div>
             </div>
@@ -94,7 +97,10 @@ export default function HomePage() {
                   placeholder="••••••••"
                   required
                   autoComplete="new-password"
-                  name="password_login_field_v2"
+                  name="user_login_password_field_v3_random"
+                  id="user_login_password_field_v3_random"
+                  readOnly={!password && true}
+                  onFocus={(e) => e.target.removeAttribute('readonly')}
                 />
               </div>
             </div>
