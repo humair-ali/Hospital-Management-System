@@ -60,7 +60,7 @@ async function createUser(req, res) {
       }
     }
 
-    
+
     if (role === 'admin' || parseInt(role_id) === 1) {
       if (connection) await connection.rollback();
       return res.status(403).json({ success: false, error: 'Unauthorized: Creation of additional system administrators is prohibited.' });
@@ -151,6 +151,23 @@ async function updateProfile(req, res) {
     const { name, phone, gender, dob, profile_image, language, theme, notifications_enabled, password, old_password } = req.body;
     connection = await pool.getConnection();
     await connection.beginTransaction();
+
+    // Vercel Fix: Ensure database column can hold Base64 strings if image is provided
+    if (profile_image && profile_image.length > 500) {
+      try {
+        const [cols] = await connection.query(`
+            SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'profile_image'
+          `);
+        if (cols.length > 0 && cols[0].DATA_TYPE !== 'longtext' && cols[0].DATA_TYPE !== 'mediumtext') {
+          await connection.query(`ALTER TABLE users MODIFY COLUMN profile_image LONGTEXT NULL`);
+          console.log('✅ Migrated profile_image column to LONGTEXT on-the-fly');
+        }
+      } catch (e) {
+        console.warn('Auto-migration for profile_image failed:', e.message);
+      }
+    }
+
     const [users] = await connection.query(`SELECT * FROM users WHERE id = ?`, [id]);
     if (users.length === 0) {
       await connection.rollback();
