@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@/context/UserContext';
 import { useNavigation } from '@/context/NavigationContext';
-import { getPatients } from '@/lib/api';
+import { getPatients, deletePatient } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
-import { FaUserInjured, FaSearch, FaPhoneAlt, FaMapMarkerAlt, FaPlus, FaEllipsisH } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import { FaUserInjured, FaSearch, FaPhoneAlt, FaMapMarkerAlt, FaPlus, FaTrash } from 'react-icons/fa';
 export default function PatientsPage() {
   const { user, loading: authLoading } = useUser();
   const { navigateTo } = useNavigation();
@@ -29,6 +30,18 @@ export default function PatientsPage() {
     }
     fetchData();
   }, [search]);
+  async function handleDeletePatient(id) {
+    if (confirm('Are you sure you want to delete this patient record?')) {
+      try {
+        await deletePatient(id);
+        toast.success('Patient record deleted');
+        const res = await getPatients({ search });
+        setPatients(res.data || []);
+      } catch (err) {
+        toast.error('Failed to delete patient');
+      }
+    }
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-200/60">
@@ -139,9 +152,20 @@ export default function PatientsPage() {
                       )}
                     </td>
                     <td className="table-cell pr-8 text-right">
-                      <SPALink href={`patients/${p.id}`} className="btn-secondary py-2 px-4 text-xs font-bold">
-                        View Profile
-                      </SPALink>
+                      <div className="flex items-center justify-end gap-2">
+                        <SPALink href={`patients/${p.id}`} className="btn-secondary py-2 px-4 text-xs font-bold">
+                          View Profile
+                        </SPALink>
+                        {user && user.role === 'admin' && (
+                          <button
+                            onClick={() => handleDeletePatient(p.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Delete Patient"
+                          >
+                            <FaTrash size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -29,44 +29,40 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use((req, res, next) => {
   const start = Date.now();
+  console.log(`Incoming request: ${req.method} ${req.url}`);
   res.on('finish', () => {
+
     const duration = Date.now() - start;
     console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} [${res.statusCode}] - ${duration}ms`);
   });
   next();
 });
-const safeRequire = (path) => {
-  try {
-    return require(path);
-  } catch (err) {
-    console.error(`❌ ERROR: Could not load route ${path}`);
-    console.error(err);
-    return express.Router();
-  }
-};
-const authRoutes = safeRequire('./routes/auth');
-const patientsRoutes = safeRequire('./routes/patients');
-const doctorsRoutes = safeRequire('./routes/doctors');
-const appointmentsRoutes = safeRequire('./routes/appointments');
-const billingRoutes = safeRequire('./routes/billing');
-const reportsRoutes = safeRequire('./routes/reports');
-const usersRoutes = safeRequire('./routes/users');
-const medicalRecordsRoutes = safeRequire('./routes/medical-records');
-const uploadRoutes = safeRequire('./routes/upload');
-const searchRoutes = safeRequire('./routes/search');
-const profileRoutes = safeRequire('./routes/profile');
+const authRoutes = require('./routes/auth');
+const patientsRoutes = require('./routes/patients');
+const doctorsRoutes = require('./routes/doctors');
+const appointmentsRoutes = require('./routes/appointments');
+const billingRoutes = require('./routes/billing');
+const reportsRoutes = require('./routes/reports');
+const usersRoutes = require('./routes/users');
+const medicalRecordsRoutes = require('./routes/medical-records');
+const uploadRoutes = require('./routes/upload');
+const searchRoutes = require('./routes/search');
+const profileRoutes = require('./routes/profile');
+
 const API_PREFIX = '/api';
-if (authRoutes) app.use(`${API_PREFIX}/auth`, authRoutes);
-if (patientsRoutes) app.use(`${API_PREFIX}/patients`, patientsRoutes);
-if (doctorsRoutes) app.use(`${API_PREFIX}/doctors`, doctorsRoutes);
-if (appointmentsRoutes) app.use(`${API_PREFIX}/appointments`, appointmentsRoutes);
-if (billingRoutes) app.use(`${API_PREFIX}/bills`, billingRoutes);
-if (reportsRoutes) app.use(`${API_PREFIX}/reports`, reportsRoutes);
-if (usersRoutes) app.use(`${API_PREFIX}/users`, usersRoutes);
-if (medicalRecordsRoutes) app.use(`${API_PREFIX}/medical-records`, medicalRecordsRoutes);
-if (uploadRoutes) app.use(`${API_PREFIX}/upload`, uploadRoutes);
-if (searchRoutes) app.use(`${API_PREFIX}/search`, searchRoutes);
-if (profileRoutes) app.use(`${API_PREFIX}/profile`, profileRoutes);
+
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/patients`, patientsRoutes);
+app.use(`${API_PREFIX}/doctors`, doctorsRoutes);
+app.use(`${API_PREFIX}/appointments`, appointmentsRoutes);
+app.use(`${API_PREFIX}/bills`, billingRoutes);
+app.use(`${API_PREFIX}/reports`, reportsRoutes);
+app.use(`${API_PREFIX}/users`, usersRoutes);
+app.use(`${API_PREFIX}/medical-records`, medicalRecordsRoutes);
+app.use(`${API_PREFIX}/upload`, uploadRoutes);
+app.use(`${API_PREFIX}/search`, searchRoutes);
+app.use(`${API_PREFIX}/profile`, profileRoutes);
+
 app.use('/uploads', express.static('uploads'));
 app.get('/', (req, res) => {
   res.json({
@@ -106,51 +102,55 @@ const { testConnection } = require('./config/db');
 const PORT = parseInt(process.env.PORT || 5000, 10);
 
 
-(async () => {
-  try {
-    const connected = await testConnection();
-    if (!connected) {
-      console.warn('⚠️  Database connection warning - will attempt to proceed');
-    } else {
-      console.log('✅ Database connected successfully');
-    }
-  } catch (err) {
-    console.warn('⚠️  Database connection error (non-critical):', err.message);
-  }
-
-  
-  const startServer = (port) => {
-    const server = app.listen(port, '0.0.0.0', () => {
-      console.log(`🚀 HMS Server running on port ${port}`);
-      console.log(`   Local: http://localhost:${port}`);
-      console.log(`   Network: http://0.0.0.0:${port}`);
-    });
-
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        console.warn(`⚠️  Port ${port} is busy. Switching to ${port + 1}...`);
-        startServer(port + 1);
+if (require.main === module) {
+  (async () => {
+    try {
+      const connected = await testConnection();
+      if (!connected) {
+        console.warn('⚠️  Database connection warning - will attempt to proceed');
       } else {
-        console.error('Server error:', err);
+        console.log('✅ Database connected successfully');
       }
-    });
-    return server;
-  };
+    } catch (err) {
+      console.warn('⚠️  Database connection error (non-critical):', err.message);
+    }
 
-  const server = startServer(PORT);
 
-  process.on('unhandledRejection', (err) => {
-    console.error('UNHANDLED REJECTION! 💥 Shutting down...');
-    console.error(err.name, err.message);
-    server.close(() => {
-      process.exit(1);
-    });
-  });
+    const startServer = (port) => {
+      const server = app.listen(port, '0.0.0.0', () => {
+        console.log(`🚀 HMS Server running on port ${port}`);
+        console.log(`   Local: http://localhost:${port}`);
+        console.log(`   Network: http://0.0.0.0:${port}`);
+      });
 
-  process.on('SIGTERM', () => {
-    console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
-    server.close(() => {
-      console.log('💥 Process terminated!');
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.warn(`⚠️  Port ${port} is busy. Switching to ${port + 1}...`);
+          startServer(port + 1);
+        } else {
+          console.error('Server error:', err);
+        }
+      });
+      return server;
+    };
+
+    const server = startServer(PORT);
+
+    process.on('unhandledRejection', (err) => {
+      console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+      console.error(err.name, err.message);
+      server.close(() => {
+        process.exit(1);
+      });
     });
-  });
-})();
+
+    process.on('SIGTERM', () => {
+      console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+      server.close(() => {
+        console.log('💥 Process terminated!');
+      });
+    });
+  })();
+}
+
+module.exports = app;

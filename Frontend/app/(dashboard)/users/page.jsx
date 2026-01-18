@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useUser, hasRole } from '@/context/UserContext';
-import { getUsers } from '@/lib/api';
+import { getUsers, deleteUser } from '@/lib/api';
 import { SPALink } from '@/components/SPALink';
 import { toast } from 'react-toastify';
 import { FaSearch, FaUserPlus, FaEdit, FaTrash, FaUserMd, FaUserNurse, FaUserTie, FaUserShield, FaChevronRight } from 'react-icons/fa';
@@ -25,6 +25,17 @@ export default function UsersPage() {
       toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
+    }
+  }
+  async function handleDeleteUser(id) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      try {
+        await deleteUser(id);
+        toast.success('User deleted successfully');
+        fetchUsers();
+      } catch (err) {
+        toast.error('Failed to delete user');
+      }
     }
   }
   const getRoleIcon = (role) => {
@@ -95,7 +106,7 @@ export default function UsersPage() {
         <div className="flex-1">
           <select
             className="input-field h-12 bg-gray-50/50 focus:bg-white border-transparent focus:border-primary-500 text-sm font-bold w-full"
-            onChange={(e) => setSearch(e.target.value)} 
+            onChange={(e) => setSearch(e.target.value)}
           >
             <option value="">All Roles</option>
             <option value="doctor">Doctors</option>
@@ -176,9 +187,18 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="table-cell pr-8 text-right">
-                      <SPALink href={`users/${u.id}/edit`} className="btn-secondary px-4 py-2 text-xs font-bold flex items-center gap-2 ml-auto w-fit">
-                        <FaEdit size={12} /> Edit User <FaChevronRight size={10} className="opacity-50" />
-                      </SPALink>
+                      <div className="flex items-center justify-end gap-2">
+                        <SPALink href={`users/${u.id}/edit`} className="btn-secondary px-4 py-2 text-xs font-bold flex items-center gap-2 w-fit">
+                          <FaEdit size={12} /> Edit
+                        </SPALink>
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                          title="Delete User"
+                        >
+                          <FaTrash size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -6,8 +6,8 @@ import { toast } from 'react-toastify';
 import { useUser } from '@/context/UserContext';
 import { FaBriefcaseMedical, FaEnvelope, FaLock, FaCheckCircle } from 'react-icons/fa';
 export default function HomePage() {
-  const [email, setEmail] = useState('admin@hospital.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login: performLogin } = useUser();
   const router = useRouter();
