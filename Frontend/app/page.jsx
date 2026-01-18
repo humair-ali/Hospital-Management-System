@@ -44,7 +44,7 @@ export default function HomePage() {
             <span className="text-primary-600 text-sm tracking-[0.4em] mb-2">Hospital Internal</span>
             HMS Enterprise
           </h1>
-          <p className="text-gray-400 font-bold text-[10px] mt-4 tracking-[0.3em] uppercase opacity-70">Secured Clinical Portal • Node 01-HMS (Root Fix v2)</p>
+          <p className="text-gray-400 font-bold text-[10px] mt-4 tracking-[0.3em] uppercase opacity-70">Secured Clinical Portal • Node 01-HMS (Nested Fix v2)</p>
         </div>
 
         <div className="card-elevated p-8 md:p-10 border-t-[8px] border-t-primary-600 !border !border-primary-600/20 relative overflow-hidden bg-white">
